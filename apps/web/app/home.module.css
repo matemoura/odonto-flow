@@ -1,0 +1,272 @@
+.pagina {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+  padding: 28px 20px 40px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+/* --- topo ---------------------------------------------------------- */
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.marca {
+  font-family: var(--fonte-display);
+  font-size: 20px;
+  letter-spacing: 0.01em;
+}
+.selo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--tinta-55);
+}
+
+/* --- hero ------------------------------------------------------------ */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+@media (min-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr 1.15fr;
+    align-items: center;
+    gap: 48px;
+  }
+}
+
+.heroTexto .rotulo {
+  margin-bottom: 14px;
+  display: block;
+}
+.titulo {
+  font-size: clamp(2.3rem, 5.4vw, 3.4rem);
+  max-width: 13ch;
+}
+.subtitulo {
+  margin: 18px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--tinta-70);
+  max-width: 46ch;
+}
+
+/* --- prévia interativa da agenda --------------------------------------- */
+.previaEnvelope {
+  padding: var(--s6) var(--s5) var(--s5);
+}
+.previaCabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.previaTitulo {
+  font-family: var(--fonte-ui);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.previaContador {
+  font-size: 12px;
+  font-weight: 600;
+  color: #38715c;
+  font-variant-numeric: tabular-nums;
+}
+
+.faixa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 7px;
+  margin: 16px 0 12px;
+}
+
+.slot {
+  flex: 0 1 72px;
+  width: 72px;
+  height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 6px;
+  line-height: 1.2;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--r-md);
+  background: var(--branco);
+  color: var(--tinta);
+  cursor: pointer;
+  transition: background var(--transicao), border-color var(--transicao), transform var(--transicao);
+}
+.slot:hover:not(:disabled) {
+  background: var(--menta);
+  border-color: var(--menta-borda);
+}
+.slot:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.slotHora {
+  font-family: var(--fonte-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+.slotDetalhe {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--tinta-55);
+}
+.slotOcupado {
+  background: var(--areia);
+  border-color: var(--areia);
+  cursor: default;
+}
+.slotOcupado:disabled {
+  opacity: 1;
+}
+.slotReservado {
+  border-color: var(--salvia);
+  background: #e3efe8;
+  animation: slot-reservar 220ms ease both;
+}
+.slotReservado .slotDetalhe {
+  color: #2f6650;
+}
+@keyframes slot-reservar {
+  from {
+    transform: scale(0.88);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.agora {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 34px;
+  align-self: stretch;
+}
+.agoraPonto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ameixa);
+  animation: agora-pulso 1.8s ease-in-out infinite;
+}
+.agoraLinha {
+  flex: 1;
+  width: 1px;
+  background: var(--linha-forte);
+}
+.agoraRotulo {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ameixa);
+  writing-mode: vertical-rl;
+}
+@keyframes agora-pulso {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(122, 59, 87, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(122, 59, 87, 0);
+  }
+}
+
+.dica {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tinta-55);
+}
+
+/* --- acesso principal (quem já é cliente) ------------------------------- */
+.acessoPrincipal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r-md);
+  background: var(--branco);
+}
+.caminhoRotulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--salvia);
+}
+.acessoTitulo {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+.caminhoTexto {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  color: var(--tinta-70);
+  line-height: 1.5;
+  max-width: 44ch;
+}
+
+/* --- demonstração (sandbox, sem conta) ----------------------------------- */
+.demo {
+  padding-top: 4px;
+}
+.demoTitulo {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.demoTexto {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--tinta-70);
+  max-width: 52ch;
+}
+.demoLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* --- rodapé --------------------------------------------------------- */
+.rodape {
+  margin-top: -24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--linha);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--tinta-55);
+}
+.rodape code {
+  font-family: var(--fonte-mono);
+  font-size: 11.5px;
+}
+
+@media (max-width: 480px) {
+  .slot {
+    flex-basis: 56px;
+    min-width: 56px;
+  }
+}

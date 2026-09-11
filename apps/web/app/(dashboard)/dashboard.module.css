@@ -1,0 +1,214 @@
+.shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--gaze-2);
+}
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 20px 14px;
+  background: var(--consultorio);
+  color: #cfe0d6;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+}
+
+.marca {
+  font-family: var(--fonte-display);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--gaze);
+  margin-bottom: 18px;
+  padding: 0 8px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #cfe0d6;
+  text-decoration: none;
+  transition: background var(--transicao), color var(--transicao);
+}
+.link:hover {
+  background: rgba(250, 247, 242, 0.1);
+  color: var(--gaze);
+}
+.link:focus-visible {
+  outline-color: var(--menta);
+}
+.linkAtivo,
+.linkAtivo:hover {
+  background: var(--salvia);
+  color: var(--gaze);
+  font-weight: 600;
+}
+
+/* --- grupos recolhíveis ------------------------------------------------ */
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.grupoBotao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: #a9c4b6;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transicao), color var(--transicao);
+}
+.grupoBotao:hover {
+  background: rgba(250, 247, 242, 0.1);
+  color: var(--gaze);
+}
+.grupoBotao:focus-visible {
+  outline-color: var(--menta);
+}
+/* fechado mas com a página atual dentro: precisa se anunciar */
+.grupoBotaoAtivo {
+  color: var(--gaze);
+}
+.grupoBotaoAtivo::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--salvia);
+  flex: none;
+}
+
+.seta {
+  flex: none;
+  transition: transform var(--transicao);
+}
+.setaAberta {
+  transform: rotate(180deg);
+}
+
+.grupoItens {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grupoFechado {
+  display: none;
+}
+
+.subLink {
+  padding-left: 22px;
+  font-size: 13px;
+  min-height: 38px;
+}
+
+.tenant {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: rgba(250, 247, 242, 0.09);
+  font-size: 13px;
+  color: var(--gaze);
+}
+.tenantRotulo {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.conteudo {
+  min-width: 0;
+  padding: 22px 24px 40px;
+}
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    /* Sem isto, as duas linhas (barra e conteúdo) se esticam para preencher os
+       100dvh quando a página é curta, e a barra do topo fica desproporcional. */
+    grid-template-rows: auto 1fr;
+  }
+  .lateral {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    overflow-x: auto;
+    /* sinaliza que dá pra rolar o menu na horizontal, em vez de cortar sem aviso */
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+  }
+  .marca {
+    margin: 0;
+    font-size: 20px;
+    padding: 0;
+    flex: none;
+  }
+  .nav {
+    flex-direction: row;
+    gap: 4px;
+  }
+  .link {
+    white-space: nowrap;
+    padding: 8px 12px;
+  }
+  /* Na faixa horizontal não há espaço para acordeão: os grupos somem e os
+     itens viram links soltos na mesma linha rolável. `display: contents`
+     dissolve o wrapper, então nada precisa ser renderizado duas vezes. */
+  .grupo,
+  .grupoItens,
+  .grupoFechado {
+    display: contents;
+  }
+  .grupoBotao {
+    display: none;
+  }
+  .subLink {
+    padding: 8px 12px;
+    font-size: 13.5px;
+    min-height: 0;
+  }
+  .tenant {
+    margin: 0 0 0 auto;
+    flex: none;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+  .tenantRotulo {
+    display: none;
+  }
+  .conteudo {
+    padding: 16px 14px 32px;
+  }
+}

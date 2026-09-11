@@ -1,0 +1,17 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/integrations/*"
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  # false de propósito: o script de install do @sentry/cli baixa o binário
+  # sentry-cli (~8 MB), usado só para enviar source maps ao Sentry no build.
+  # O next.config.mjs não usa `withSentryConfig`, então nada chama esse
+  # binário — baixá-lo seria peso morto em todo install e em todo CI.
+  # No dia em que o upload de source map for ligado, troque para true.
+  '@sentry/cli': false
+  argon2: true
+  esbuild: true
+  prisma: true
+  unrs-resolver: true

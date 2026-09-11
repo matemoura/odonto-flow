@@ -1,0 +1,29 @@
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { JwtModule } from "@nestjs/jwt";
+import { PassportModule } from "@nestjs/passport";
+import { AuthController } from "./auth.controller";
+import { PlatformAuthController } from "./platform-auth.controller";
+import { AuthService } from "./auth.service";
+import { JwtStrategy } from "./strategies/jwt.strategy";
+
+@Module({
+  imports: [
+    PassportModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        // Sem fallback de propósito: um segredo previsível em produção
+        // permite forjar token válido pra qualquer clínica/papel. Falha já
+        // na subida da API se a env var não estiver configurada.
+        secret: config.getOrThrow<string>("JWT_ACCESS_SECRET"),
+        signOptions: { expiresIn: "1h" },
+      }),
+    }),
+  ],
+  controllers: [AuthController, PlatformAuthController],
+  providers: [AuthService, JwtStrategy],
+  exports: [AuthService],
+})
+export class AuthModule {}

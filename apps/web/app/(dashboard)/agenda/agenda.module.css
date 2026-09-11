@@ -1,0 +1,360 @@
+.pagina {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--largura-conteudo);
+}
+
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.saudacao {
+  font-size: clamp(1.5rem, 3.6vw, 1.85rem);
+}
+.resumo {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--tinta-70);
+}
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.topo {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 14px;
+}
+
+.agora {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.agoraLinha {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 2px;
+}
+.agoraNome {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+}
+.agoraDetalhe {
+  margin: 0;
+  font-size: 13px;
+  color: var(--tinta-70);
+}
+.agoraAcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.recepcao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pessoa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--areia);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pessoaNome {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.pessoaDetalhe {
+  font-size: 12px;
+  color: var(--salvia);
+}
+.pessoaAtencao {
+  font-size: 12px;
+  color: var(--ameixa);
+}
+.pessoaPresente {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--salvia);
+}
+.espera {
+  margin: auto 0 0;
+  font-size: 12.5px;
+  color: var(--tinta-55);
+}
+
+.secaoTitulo {
+  font-family: var(--fonte-ui);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.linha {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.linhaCabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.linhaMeta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tinta-55);
+}
+.barra {
+  list-style: none;
+  display: flex;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  height: 34px;
+}
+.bloco {
+  flex: 1;
+  border-radius: 3px;
+}
+.bloco:first-child {
+  border-radius: var(--r-sm) 3px 3px var(--r-sm);
+}
+.bloco:last-child {
+  border-radius: 3px var(--r-sm) var(--r-sm) 3px;
+}
+.cheio {
+  background: var(--salvia);
+}
+.parcial {
+  background: #9cbfae;
+}
+.livre {
+  background: var(--areia);
+}
+.falta {
+  background: #c9a9b6;
+}
+.reguaHoras {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-family: var(--fonte-mono);
+  color: var(--tinta-55);
+}
+
+.proximas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.proximasCabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 6px;
+}
+.consultas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.consulta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--linha);
+}
+.consultaHora {
+  font-family: var(--fonte-display);
+  font-size: 20px;
+  width: 56px;
+  flex: none;
+}
+.consultaCorpo {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.consultaNome {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.consultaDetalhe {
+  font-size: 12px;
+  color: var(--tinta-70);
+}
+.consultaAlerta {
+  font-size: 12px;
+  color: var(--ameixa);
+}
+.consultaPresente {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--salvia);
+}
+
+/* 900px é o mesmo ponto em que a lateral vira faixa horizontal
+   (dashboard.module.css). Com 860 sobrava a faixa 861–899px em que o conteúdo
+   já tinha perdido a largura da lateral mas as duas colunas continuavam de pé. */
+@media (max-width: 900px) {
+  .topo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .acoes {
+    width: 100%;
+  }
+  .acoes > * {
+    flex: 1;
+  }
+  .consultaHora {
+    width: auto;
+  }
+  .consulta {
+    align-items: flex-start;
+  }
+}
+
+/* --- navegação por dia e semana ------------------------------------------- */
+
+.navegacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r-lg);
+  background: var(--gaze);
+}
+
+.navegacaoGrupo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Ocupa o espaço do meio para empurrar as abas até a borda direita; em telas
+   estreitas o `flex-wrap` quebra a linha e ele volta a ser um rótulo comum. */
+.navegacaoRotulo {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+/* `::first-letter`, não `text-transform: capitalize`: em português só a
+   primeira letra sobe. O `capitalize` escreveria "Sábado, 12 De Setembro". */
+.navegacaoRotulo::first-letter {
+  text-transform: uppercase;
+}
+
+.navegacaoData {
+  display: inline-flex;
+}
+.navegacaoInput {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--r-sm);
+  font-family: var(--fonte-ui);
+  font-size: 13px;
+  color: var(--tinta);
+  background: var(--branco);
+}
+.navegacaoInput:focus-visible {
+  outline: 3px solid var(--salvia);
+  outline-offset: 1px;
+}
+
+.navegacaoAbas {
+  display: flex;
+  gap: 4px;
+}
+
+/* --- visão de semana ------------------------------------------------------- */
+
+/* `auto-fit` com `min(260px, 100%)`: o `min()` evita que a coluna mínima fique
+   maior que a tela num celular estreito, que é o jeito clássico de um grid
+   assim provocar rolagem horizontal. */
+.semana {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.semanaDia {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.semanaDiaHoje {
+  border-color: var(--salvia);
+  box-shadow: 0 0 0 1px var(--salvia);
+}
+
+.semanaDiaCabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--linha);
+}
+.semanaDiaCabecalho .secaoTitulo::first-letter {
+  text-transform: uppercase;
+}
+
+.semanaDiaContagem {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--tinta-55);
+}
+
+@media (max-width: 720px) {
+  .navegacaoRotulo {
+    order: -1;
+    flex-basis: 100%;
+  }
+}

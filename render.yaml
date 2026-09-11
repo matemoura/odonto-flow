@@ -1,0 +1,72 @@
+# Blueprint do Render para a API (apps/api).
+#
+# O front (apps/web) NÃO entra aqui — vai para a Vercel. Este arquivo descreve
+# apenas o serviço NestJS.
+#
+# Como usar: no Render, "New" → "Blueprint" → aponte para este repositório.
+# Ele vai pedir os valores marcados com `sync: false` antes de criar o serviço.
+#
+# AVISO: este blueprint nunca foi executado num deploy real. O primeiro deploy
+# é o teste dele. Se algo falhar, o log de build do Render diz exatamente onde.
+
+services:
+  - type: web
+    name: odontoflow-api
+    runtime: node
+    plan: free
+
+    # Região: o padrão é oregon (costa oeste dos EUA), longe do Brasil e ruim
+    # para a latência de quem usa. Ajuste para a região mais próxima disponível
+    # na sua conta antes do deploy definitivo.
+    # region: virginia
+
+    healthCheckPath: /health
+
+    # O build roda na raiz do monorepo, não em apps/api: a API depende de
+    # pacotes do workspace (@odontoflow/db, shared-types, integrations) que
+    # precisam ser instalados e compilados junto.
+    #
+    # `--filter=@odontoflow/api...` (com as três reticências) constrói a API e
+    # tudo de que ela depende, sem construir o front — que é trabalho jogado
+    # fora aqui.
+    #
+    # O `migrate deploy` está no build porque o plano free do Render não tem
+    # pre-deploy command. Consequência: as migrations são aplicadas mesmo que o
+    # deploy falhe depois. Enquanto as migrations forem aditivas isso é
+    # inofensivo; no dia em que uma remover coluna, mova este passo para um
+    # pre-deploy command (exige plano pago) ou rode à mão.
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm db:generate &&
+      pnpm turbo run build --filter=@odontoflow/api... &&
+      pnpm --filter @odontoflow/db exec prisma migrate deploy
+
+    startCommand: pnpm --filter @odontoflow/api start
+
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+
+      # String de conexão do Neon. Precisa terminar com `?sslmode=require`.
+      - key: DATABASE_URL
+        sync: false
+
+      # Origens do front na Vercel liberadas no CORS. Aceita VÁRIAS separadas
+      # por vírgula, e barra no final é ignorada. A Vercel publica o mesmo app
+      # em mais de um domínio (alias de produção e alias do branch), e cada um
+      # é uma origem diferente para o navegador.
+      # Ex.: https://app.vercel.app,https://app-git-main-voce.vercel.app
+      - key: WEB_APP_URL
+        sync: false
+
+      # Gerados pelo Render, aleatórios. A API não sobe sem os dois: um segredo
+      # previsível permite forjar token válido para qualquer clínica e papel.
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      # Opcional — monitoramento de erro (sentry.io). Deixe vazio para desligar.
+      - key: SENTRY_DSN
+        sync: false

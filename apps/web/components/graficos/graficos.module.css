@@ -1,0 +1,244 @@
+/* Chrome dos gráficos. As cores das séries vêm de viz.ts (paleta validada);
+   aqui ficam só superfície, tinta e as peças que cercam o dado. */
+
+.cartao {
+  background: var(--gaze);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* sem altura fixa: a faixa de rótulos do eixo x cresce junto e nunca vira
+     um scroll interno de 20px */
+  min-width: 0;
+}
+
+.titulo {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.subtitulo {
+  font-size: 12px;
+  color: var(--tinta-55);
+  margin: 0;
+}
+
+/* Largura/altura vêm em pixels reais do componente (ver useLargura), para o
+   texto dos eixos não encolher junto com a caixa. */
+.svg {
+  display: block;
+  overflow: visible;
+  /* trava de segurança: mesmo que a medição atrase um frame, o SVG nunca
+     empurra a página para fora da tela */
+  max-width: 100%;
+}
+
+/* --- legenda: presente sempre que houver 2+ séries --------------------- */
+.legenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.legendaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  /* o texto nunca veste a cor da série — quem carrega identidade é o quadrinho */
+  color: var(--tinta-70);
+}
+.legendaMarca {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* --- tooltip ----------------------------------------------------------- */
+.areaHover {
+  position: relative;
+}
+.tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  background: var(--consultorio);
+  color: var(--gaze);
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: var(--sombra-alta);
+}
+.tooltipTitulo {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.tooltipLinha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tooltipMarca {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+.tooltipValor {
+  margin-left: auto;
+  padding-left: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- tabela equivalente (todo gráfico tem a sua) ----------------------- */
+.tabelaResumo {
+  margin-top: 2px;
+}
+.tabelaResumo summary {
+  font-size: 12px;
+  color: var(--tinta-55);
+  cursor: pointer;
+}
+.tabelaRolagem {
+  overflow-x: auto;
+}
+.tabelaResumo table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin-top: 8px;
+}
+.tabelaResumo th,
+.tabelaResumo td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--linha);
+}
+.tabelaResumo th {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-55);
+}
+.tabelaResumo td + td,
+.tabelaResumo th + th {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vazio {
+  padding: 28px 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--tinta-55);
+}
+
+/* --- seções por assunto ------------------------------------------------ */
+.secao {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* referência das container queries dos gráficos e dos indicadores */
+  container-type: inline-size;
+}
+
+/* A régua à esquerda amarra indicadores e gráficos do mesmo assunto sem
+   precisar de caixa, borda ou fundo diferente. */
+.secaoTitulo {
+  font-family: var(--fonte-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-55);
+  margin: 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--menta-borda);
+  line-height: 1.4;
+}
+
+/* --- indicadores (stat tiles) ----------------------------------------- */
+/* `auto-fill` e não `auto-fit`: com auto-fit, três indicadores numa tela larga
+   viram três cartões de 470px quase vazios. Com auto-fill as faixas continuam
+   do tamanho de um número, e o que sobra fica como espaço. */
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+.indicador {
+  background: var(--gaze);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.indicadorRotulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tinta-55);
+}
+.indicadorValor {
+  /* números grandes usam figuras proporcionais, não tabular */
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.indicadorNota {
+  font-size: 11.5px;
+  color: var(--tinta-55);
+}
+.indicadorPositivo {
+  color: #006300;
+}
+.indicadorNegativo {
+  color: var(--ameixa);
+}
+
+/* --- grade de gráficos ------------------------------------------------- */
+/* `minmax(0, 1fr)` e não `1fr`: com o mínimo automático a coluna nunca fica
+   menor que o conteúdo, e como o SVG é desenhado na largura medida, isso vira
+   um laço — o gráfico segura a coluna larga, a coluna larga mantém o gráfico
+   largo, e a página ganha rolagem horizontal no celular. */
+.grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+.grade > * {
+  min-width: 0;
+}
+/* Container query, não media query: o que decide se cabem duas colunas é o
+   espaço que sobra depois da lateral, não a largura da janela. Com media query
+   o mesmo conteúdo quebrava diferente conforme o zoom. */
+@container (min-width: 900px) {
+  .grade {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.gradeLarga {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .cartao {
+    padding: var(--s4);
+  }
+  .indicadorValor {
+    font-size: 21px;
+  }
+}
