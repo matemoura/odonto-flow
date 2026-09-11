@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dentista
+          POSTGRES_PASSWORD: dentista
+          POSTGRES_DB: dentista
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dentista"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://dentista:dentista@localhost:5432/dentista?schema=public
+      # nota: no CI o serviço postgres roda isolado no runner (sem conflito de
+      # porta com Postgres nativo), por isso aqui usa 5432; localmente use 5433
+      # (ver infra/docker-compose.yml) para não colidir com um Postgres já
+      # instalado na máquina do dev.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sem `version:` de propósito. A action v4 lê o campo `packageManager`
+      # do package.json; informar os dois faz ela abortar com "Multiple
+      # versions of pnpm specified". O package.json é a fonte da verdade.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Run migrations
+        run: pnpm --filter @odontoflow/db exec prisma migrate deploy
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

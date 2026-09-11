@@ -1,0 +1,125 @@
+.pagina {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--largura-conteudo);
+}
+
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.titulo {
+  font-size: clamp(1.4rem, 3.2vw, 1.7rem);
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.tabela th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-55);
+  border-bottom: 1px solid var(--linha-forte);
+}
+.tabela td {
+  padding: 10px;
+  border-bottom: 1px solid var(--linha);
+  vertical-align: middle;
+}
+.tabela tr:last-child td {
+  border-bottom: 0;
+}
+.tabela a {
+  font-weight: 600;
+}
+
+.vazio {
+  padding: 20px;
+  font-size: 13px;
+  color: var(--tinta-70);
+}
+
+/* Blocos de uma tela de detalhe (orçamentos, ortodontia, atestados…). Em tela
+   larga eles convivem lado a lado em vez de virarem uma fita estreita e
+   comprida com o resto da tela vazio ao lado. */
+/* `min(400px, 100%)` e não `400px`: com o mínimo fixo a faixa não encolhe
+   abaixo de 400 e a página inteira ganha rolagem horizontal no celular. */
+.blocos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: var(--s5);
+  border-radius: var(--r-lg);
+  background: var(--gaze);
+}
+
+/* Os campos fluem em colunas conforme o espaço, em vez de uma fila única e
+   estreita com o resto da tela vazio ao lado. Em tela estreita vira 1 coluna. */
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+  max-width: var(--largura-formulario);
+}
+/* Título de bloco, aviso de erro/sucesso e a linha de botões ocupam a linha
+   inteira — só campo entra na divisão em colunas. */
+.form > *:not(.campo) {
+  grid-column: 1 / -1;
+}
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.rotuloCampo {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-family: var(--fonte-ui);
+  color: var(--tinta);
+  background: var(--branco);
+}
+.input:focus-visible {
+  outline: 3px solid var(--salvia);
+  outline-offset: 1px;
+}
+
+.erro {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--ameixa-suave);
+  color: var(--ameixa);
+  font-size: 12.5px;
+}
+.sucesso {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--menta);
+  color: #1e4638;
+  font-size: 12.5px;
+}

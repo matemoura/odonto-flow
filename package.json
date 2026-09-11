@@ -1,0 +1,22 @@
+{
+  "name": "odonto-flow",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@12.3.4",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @odontoflow/db generate",
+    "db:migrate": "pnpm --filter @odontoflow/db migrate:dev",
+    "db:seed": "pnpm --filter @odontoflow/db seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  }
+}

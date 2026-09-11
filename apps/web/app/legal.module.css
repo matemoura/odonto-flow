@@ -1,0 +1,55 @@
+.pagina {
+  min-height: 100dvh;
+  padding: 40px 20px 64px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.voltar {
+  font-size: 12.5px;
+  color: var(--tinta-55);
+}
+
+.titulo {
+  margin: 16px 0 4px;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+
+.atualizado {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--tinta-55);
+}
+
+.aviso {
+  margin: 16px 0 32px;
+  padding: 14px 16px;
+  border-radius: var(--r-sm);
+  background: var(--ameixa-suave);
+  color: var(--ameixa);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.corpo h2 {
+  font-family: var(--fonte-ui);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 28px 0 8px;
+}
+
+.corpo p,
+.corpo li {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--tinta-70);
+}
+
+.corpo ul {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.corpo strong {
+  color: var(--tinta);
+}

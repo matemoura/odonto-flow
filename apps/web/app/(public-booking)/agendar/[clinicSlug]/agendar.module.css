@@ -1,0 +1,246 @@
+.pagina {
+  min-height: 100dvh;
+  padding: 24px 16px 48px;
+  background: var(--gaze-2);
+}
+
+.folha {
+  max-width: 680px;
+  margin: 0 auto;
+  background: var(--gaze);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+}
+
+.topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 22px 12px;
+}
+.identidade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.selo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-pill);
+  background: var(--consultorio);
+  color: var(--gaze);
+  font-family: var(--fonte-display);
+  font-size: 17px;
+}
+.clinica {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.endereco {
+  font-size: 12px;
+  color: var(--tinta-70);
+}
+.credencial {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #38715c;
+}
+
+.capa {
+  background: var(--menta);
+  margin: 0 0 4px;
+  padding: 24px 22px 22px;
+  border-radius: 0 0 24px 24px;
+}
+.titulo {
+  font-size: clamp(1.75rem, 6vw, 2.2rem);
+  max-width: 24ch;
+}
+.subtitulo {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--tinta-70);
+  max-width: 52ch;
+}
+.garantias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: #38715c;
+}
+.garantias li::before {
+  content: "· ";
+}
+
+.fluxo {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 22px 8px;
+}
+
+.etapas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.etapa {
+  padding: 5px 12px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-55);
+}
+.etapaAtual {
+  background: var(--consultorio);
+  border-color: var(--consultorio);
+  color: var(--gaze);
+}
+.etapaProxima {
+  background: var(--menta);
+  border-color: var(--menta-borda);
+  color: var(--tinta);
+}
+
+.grupo {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.legenda {
+  padding: 0 0 9px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profissionais {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+.profissional {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color var(--transicao), background var(--transicao);
+}
+.profissional:hover {
+  border-color: var(--menta-borda);
+  background: #f4f8f5;
+}
+.profissional:has(input:focus-visible) {
+  outline: 3px solid var(--salvia);
+  outline-offset: 2px;
+}
+.profissionalAtivo {
+  border: 1.5px solid var(--consultorio);
+  background: #f4f8f5;
+}
+.profissionalTopo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--areia);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.profissionalNome {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.profissionalMeta {
+  font-size: 12px;
+  color: var(--tinta-70);
+}
+.profissionalFala {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--tinta-70);
+}
+
+.dias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.horarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.resumoTitulo {
+  margin: 4px 0 0;
+  font-family: var(--fonte-display);
+  font-size: clamp(1.35rem, 4.4vw, 1.6rem);
+  line-height: 1.15;
+}
+.resumoDetalhe {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--tinta-70);
+}
+
+.rodape {
+  padding: 16px 22px 22px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tinta-55);
+}
+
+@media (max-width: 520px) {
+  .pagina {
+    padding: 0 0 32px;
+  }
+  .folha {
+    border-radius: 0;
+  }
+  .resumo > :last-child {
+    width: 100%;
+  }
+}
+
+/* Navegação de semana do seletor "Escolha o dia". */
+.semanaNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}

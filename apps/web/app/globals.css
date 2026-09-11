@@ -1,0 +1,369 @@
+/* ============================================================
+   Odonto Flow — design tokens (direção 1b)
+   Um arquivo só: tokens + primitivas. Sem framework de CSS.
+   ============================================================ */
+
+:root {
+  /* paleta */
+  --gaze: #faf7f2;
+  --gaze-2: #f2efe9;
+  --branco: #ffffff;
+  --menta: #dcebe2;
+  --menta-borda: #cfe0d6;
+  --salvia: #6e9c86;
+  --consultorio: #1e4638;
+  --ameixa: #7a3b57;
+  --ameixa-suave: #f0e2e7;
+  --areia: #eadfcb;
+
+  /* texto */
+  --tinta: var(--consultorio);
+  --tinta-70: rgba(30, 70, 56, 0.72);
+  --tinta-55: rgba(30, 70, 56, 0.58);
+  --linha: rgba(30, 70, 56, 0.14);
+  --linha-forte: rgba(30, 70, 56, 0.3);
+
+  /* forma — o arco é a forma-mãe */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+  --arco: 60px 60px var(--r-lg) var(--r-lg);
+  --arco-alto: 64px 64px var(--r-lg) var(--r-lg);
+
+  --sombra: 0 2px 12px rgba(30, 70, 56, 0.06);
+  --sombra-alta: 0 8px 28px rgba(30, 70, 56, 0.1);
+
+  /* espaço */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 28px;
+  --s7: 40px;
+
+  /* Medida única do conteúdo das telas internas. Antes cada área tinha a sua
+     (1000 no admin, 1180 na agenda, 1100 na plataforma), e em monitor grande a
+     1000px sobrava faixa vazia — por isso o app parecia "certo" só com zoom,
+     que encolhe a janela em CSS e faz o limite deixar de valer. */
+  --largura-conteudo: 1440px;
+  /* Formulário não acompanha a largura do conteúdo: campo de 1300px é pior de
+     preencher, não melhor. O ganho de espaço vem de mais COLUNAS de campo
+     (ver .form em admin.module.css), não de campo mais largo. */
+  --largura-formulario: 1100px;
+
+  --transicao: 160ms ease;
+
+  /* tipografia — variáveis preenchidas por next/font em layout.tsx */
+  --fonte-display: var(--font-instrument-serif), Georgia, serif;
+  --fonte-ui: var(--font-public-sans), system-ui, -apple-system, sans-serif;
+  --fonte-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--gaze-2);
+  color: var(--tinta);
+  font-family: var(--fonte-ui);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 400;
+  font-family: var(--fonte-display);
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+}
+
+a {
+  color: var(--consultorio);
+  text-underline-offset: 3px;
+}
+a:hover {
+  color: var(--salvia);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* --- foco de teclado sempre visível ---------------------------------- */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 3px solid var(--salvia);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.pular-para-conteudo {
+  position: absolute;
+  left: var(--s4);
+  top: -60px;
+  z-index: 50;
+  padding: 10px 16px;
+  border-radius: var(--r-pill);
+  background: var(--consultorio);
+  color: var(--gaze);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--transicao);
+}
+.pular-para-conteudo:focus-visible {
+  top: var(--s4);
+  color: var(--gaze);
+}
+
+/* --- rótulos ---------------------------------------------------------- */
+.rotulo {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tinta-55);
+}
+.rotulo--acento {
+  color: #38715c;
+}
+
+/* --- superfícies ------------------------------------------------------ */
+.cartao {
+  background: var(--gaze);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+}
+.cartao--branco {
+  background: var(--branco);
+  box-shadow: var(--sombra);
+}
+/* o arco: só onde o paciente é o assunto */
+.arco {
+  background: var(--menta);
+  border-radius: var(--arco);
+  padding: var(--s6) var(--s5) var(--s5);
+}
+.arco--alto {
+  border-radius: var(--arco-alto);
+}
+
+.hora-display {
+  font-family: var(--fonte-display);
+  font-size: clamp(2rem, 6vw, 2.9rem);
+  line-height: 1;
+}
+
+/* --- botões (também usados por @odontoflow/ui Button) ------------------- */
+.odontoflow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transicao), color var(--transicao),
+    border-color var(--transicao), transform var(--transicao);
+}
+.odontoflow-btn:active {
+  transform: translateY(1px);
+}
+.odontoflow-btn--primary {
+  background: var(--consultorio);
+  color: var(--gaze);
+}
+.odontoflow-btn--primary:hover {
+  background: #16352a;
+}
+.odontoflow-btn--secondary {
+  background: transparent;
+  border-color: var(--linha-forte);
+  color: var(--tinta);
+}
+.odontoflow-btn--secondary:hover {
+  background: var(--menta);
+  border-color: var(--menta-borda);
+}
+.odontoflow-btn--ghost {
+  background: rgba(250, 247, 242, 0.8);
+  color: var(--tinta);
+}
+.odontoflow-btn--ghost:hover {
+  background: var(--branco);
+}
+.odontoflow-btn--perigo {
+  background: var(--ameixa);
+  color: var(--gaze);
+}
+.odontoflow-btn--perigo:hover {
+  background: #672f49;
+}
+.odontoflow-btn[disabled],
+.odontoflow-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.odontoflow-btn--sm {
+  min-height: 34px;
+  padding: 6px 13px;
+  font-size: 12.5px;
+}
+
+/* --- chips (horários, filtros) ---------------------------------------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 17px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--r-pill);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transicao), color var(--transicao),
+    border-color var(--transicao);
+}
+.chip:hover {
+  background: var(--menta);
+  border-color: var(--menta-borda);
+}
+.chip[aria-pressed="true"],
+.chip[aria-selected="true"] {
+  background: var(--consultorio);
+  border-color: var(--consultorio);
+  color: var(--gaze);
+  font-weight: 600;
+}
+.chip[disabled] {
+  border-color: var(--linha);
+  color: rgba(30, 70, 56, 0.32);
+  cursor: not-allowed;
+  background: transparent;
+}
+.chip--estatico {
+  min-height: 0;
+  min-width: 0;
+  padding: 4px 11px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+  border: 0;
+  background: var(--menta);
+}
+.chip--alerta {
+  background: var(--ameixa-suave);
+  color: var(--ameixa);
+}
+.chip--areia {
+  background: var(--areia);
+}
+
+/* --- lista de dias ---------------------------------------------------- */
+.dia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1 0 64px;
+  min-height: 60px;
+  padding: 9px 4px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--r-md);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--transicao), border-color var(--transicao);
+}
+.dia:hover {
+  background: var(--menta);
+}
+.dia[aria-pressed="true"] {
+  background: var(--consultorio);
+  border-color: var(--consultorio);
+  color: var(--gaze);
+}
+.dia[disabled] {
+  border-style: dashed;
+  border-color: var(--linha);
+  color: rgba(30, 70, 56, 0.3);
+  cursor: not-allowed;
+  background: transparent;
+}
+.dia__semana {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.dia__numero {
+  font-family: var(--fonte-display);
+  font-size: 20px;
+  line-height: 1.05;
+}
+
+/* --- movimento: opcional, nunca obrigatório --------------------------- */
+@keyframes odontoflow-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.entrada {
+  animation: odontoflow-entrada 260ms ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .entrada {
+    animation: none;
+  }
+  .odontoflow-btn:active {
+    transform: none;
+  }
+}

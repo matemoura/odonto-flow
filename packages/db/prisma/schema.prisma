@@ -1,0 +1,1031 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Fase 0/1 — núcleo multi-tenant: Organization (rede, fase 6) > Clinic (tenant)
+// > User (via ClinicMembership) / Professional / Patient.
+// Todas as tabelas operacionais carregam clinicId (tenant_id). Ver plano,
+// seção "Multi-tenancy": shared schema + tenant_id, reforçado por RLS.
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  CLINIC_ADMIN
+  DENTIST
+  ASSISTANT
+  PATIENT
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  /// Paciente chegou e está aguardando na recepção.
+  WAITING
+  /// Paciente chegou e está preenchendo a ficha de cadastro/anamnese.
+  FILLING_FORM
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum ClinicalRecordType {
+  ANAMNESIS
+  EVOLUTION
+  EXAM
+}
+
+enum ToothCondition {
+  HEALTHY
+  CARIES
+  RESTORED
+  MISSING
+  CROWN
+  IMPLANT
+  ROOT_CANAL
+  EXTRACTION_INDICATED
+}
+
+enum BudgetStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  EXPIRED
+}
+
+enum DocumentType {
+  RADIOGRAPHY
+  PHOTO
+  CONTRACT
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+/// Forma de pagamento de uma Transaction — preenchida no momento em que o
+/// lançamento é quitado, não na criação (só aí se sabe como o dinheiro entrou).
+enum PaymentMethod {
+  PIX
+  CARD
+  CASH
+}
+
+enum OpportunityStage {
+  NEW
+  CONTACTED
+  BUDGET_SENT
+  NEGOTIATING
+  WON
+  LOST
+}
+
+enum ReferralStatus {
+  PENDING
+  CONVERTED
+  REWARDED
+}
+
+/// Tipos de integração plugável — ver packages/integrations/*.
+enum IntegrationKind {
+  WHATSAPP
+  AI_ASSISTANT
+  NFE
+  E_SIGNATURE
+  CREDIT_SCORE
+}
+
+enum ContractStatus {
+  PENDING
+  SIGNED
+  DECLINED
+}
+
+enum InvoiceStatus {
+  ISSUED
+  PROCESSING
+  FAILED
+  CANCELLED
+}
+
+/// Fase 5 — tipo de aparelho do tratamento ortodôntico.
+enum OrthodonticApplianceType {
+  METALLIC_BRACKETS
+  CERAMIC_BRACKETS
+  ALIGNERS
+  OTHER
+}
+
+enum OrthodonticTreatmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum OrthodonticStepStatus {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+/// Rede/franquia — agrupa várias clínicas. Fase 6.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinics     Clinic[]
+  memberships OrganizationMembership[]
+
+  @@map("organizations")
+}
+
+/// Vínculo de um User com uma Organization inteira (não uma clínica específica)
+/// — normalmente role ORG_ADMIN. Na emissão do JWT (ver AuthService.loginStaff)
+/// isso é expandido em memberships "virtuais" para cada clínica da rede, então
+/// TenantGuard/RolesGuard funcionam sem nenhuma mudança para o ORG_ADMIN.
+model OrganizationMembership {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role         @default(ORG_ADMIN)
+
+  createdAt DateTime @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_memberships")
+}
+
+/// Uma unidade/clínica = o tenant. Todo dado operacional referencia clinicId.
+model Clinic {
+  id             String   @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  name      String
+  slug      String   @unique
+  timezone  String   @default("America/Sao_Paulo")
+  /// Plano escolhido no auto-cadastro (ex.: "basic"/"plus"/"pro") — só
+  /// informativo por enquanto, não há cobrança nem bloqueio de recurso por
+  /// plano ainda. Nulo pra clínicas criadas antes disso existir (seed, etc.).
+  plan      String?
+
+  /// Último pagamento confirmado (registrado manualmente pelo dono da
+  /// plataforma até um gateway de pagamento de verdade ser plugado — ver
+  /// PlatformAdminService.registerPayment). Nulo = nunca pagou; nesse caso a
+  /// contagem de inadimplência começa em `createdAt` (funciona como período
+  /// de teste implícito).
+  lastPaymentAt DateTime?
+  /// Suspensão manual pelo dono da plataforma — independente de inadimplência
+  /// (ex.: fraude, pedido da própria clínica). Nulo = não suspensa manualmente.
+  manuallySuspendedAt     DateTime?
+  manuallySuspendedReason String?
+
+  /// Taxa da maquininha em pontos-base (300 = 3,00%), mesma unidade de
+  /// CommissionRule. Aplicada só a recebimento no cartão, no momento da baixa.
+  cardFeeBasisPoints Int @default(0)
+  /// Dias entre a venda no cartão e o dinheiro cair na conta (0 = na hora).
+  cardSettlementDays Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships       ClinicMembership[]
+  professionals     Professional[]
+  patients          Patient[]
+  appointments      Appointment[]
+  auditLogs         AuditLog[]
+  procedures        Procedure[]
+  inventoryItems     InventoryItem[]
+  inventoryMovements InventoryMovement[]
+  budgets           Budget[]
+  clinicalRecords   ClinicalRecord[]
+  odontogramEntries Odontogram[]
+  periodontalEntries PeriodontalEntry[]
+  anamnesisForms    Anamnesis[]
+  treatmentPlanOptions TreatmentPlanOption[]
+  documents         Document[]
+  transactions      Transaction[]
+  commissionRules   CommissionRule[]
+  commissionEntries CommissionEntry[]
+  crmOpportunities  CRMOpportunity[]
+  referrals         Referral[]
+  integrationConfigs IntegrationConfig[]
+  contracts         Contract[]
+  certificates      Certificate[]
+  invoices          Invoice[]
+  creditScoreQueries CreditScoreQuery[]
+  orthodonticTreatments OrthodonticTreatment[]
+  facialPlannings   FacialPlanning[]
+
+  @@index([organizationId])
+  @@map("clinics")
+}
+
+/// Conta de usuário (staff ou paciente). Vínculo com clínica(s) via ClinicMembership.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  name         String
+  /// Dono da plataforma (Odonto Flow em si, não uma clínica) — não é um papel de
+  /// ClinicMembership porque não pertence a nenhum tenant específico. Só
+  /// setável direto no banco por enquanto (não tem UI de auto-promoção).
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships             ClinicMembership[]
+  organizationMemberships OrganizationMembership[]
+  professional            Professional?
+  patient                 Patient?
+  auditLogs               AuditLog[]
+
+  @@map("users")
+}
+
+/// Vínculo N:N entre User e Clinic, com papel (RBAC) nesse tenant.
+model ClinicMembership {
+  id       String @id @default(cuid())
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role
+
+  createdAt DateTime @default(now())
+
+  @@unique([clinicId, userId])
+  @@index([userId])
+  @@map("clinic_memberships")
+}
+
+/// Profissional (dentista) vinculado a uma clínica e a um User para login.
+model Professional {
+  id        String  @id @default(cuid())
+  clinicId  String
+  clinic    Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id])
+  croNumber String?
+  specialty String?
+  color     String? // cor de exibição na agenda
+  bio       String? // frase curta exibida no agendamento público
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments      Appointment[]
+  budgets           Budget[]
+  clinicalRecords   ClinicalRecord[]
+  transactions      Transaction[]
+  commissionRule    CommissionRule?
+  commissionEntries CommissionEntry[]
+  ownedOpportunities CRMOpportunity[]
+  orthodonticTreatments OrthodonticTreatment[]
+  treatmentPlanOptions TreatmentPlanOption[]
+  certificates      Certificate[]
+
+  @@index([clinicId])
+  @@map("professionals")
+}
+
+/// Paciente da clínica. Pode ou não ter User associado (portal do paciente).
+model Patient {
+  id              String    @id @default(cuid())
+  clinicId        String
+  clinic          Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId          String?   @unique
+  user            User?     @relation(fields: [userId], references: [id])
+  name            String
+  cpf             String?
+  rg              String?
+  birthDate       DateTime?
+  phone           String?
+  email           String?
+  consentLGPDAt   DateTime?
+
+  /// Endereço — parte do "completar dados do paciente" da ficha de anamnese.
+  addressStreet       String?
+  addressNumber       String?
+  addressComplement   String?
+  addressNeighborhood String?
+  addressCity         String?
+  addressState        String?
+  addressZip          String?
+
+  emergencyContactName         String?
+  emergencyContactPhone        String?
+  emergencyContactRelationship String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments      Appointment[]
+  budgets           Budget[]
+  clinicalRecords   ClinicalRecord[]
+  odontogramEntries Odontogram[]
+  periodontalEntries PeriodontalEntry[]
+  anamnesis         Anamnesis?
+  treatmentPlanOptions TreatmentPlanOption[]
+  documents         Document[]
+  opportunities     CRMOpportunity[]
+  referralsMade     Referral[]       @relation("ReferralsMade")
+  referralsReceived Referral[]       @relation("ReferralsReceived")
+  contracts         Contract[]
+  certificates      Certificate[]
+  creditScoreQueries CreditScoreQuery[]
+  orthodonticTreatments OrthodonticTreatment[]
+  facialPlannings   FacialPlanning[]
+
+  @@index([clinicId])
+  @@map("patients")
+}
+
+/// Agendamento — base da agenda e do link público de agendamento.
+model Appointment {
+  id             String            @id @default(cuid())
+  clinicId       String
+  clinic         Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional      @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  startAt        DateTime
+  endAt          DateTime
+  status         AppointmentStatus @default(SCHEDULED)
+  source         String            @default("internal") // internal | public-booking
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinicalRecords ClinicalRecord[]
+
+  @@index([clinicId, startAt])
+  @@index([professionalId, startAt])
+  @@map("appointments")
+}
+
+/// Catálogo de procedimentos da clínica, usado em orçamentos.
+model Procedure {
+  id                String  @id @default(cuid())
+  clinicId          String
+  clinic            Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name              String
+  code              String?
+  defaultPriceCents Int
+  /// Desativado some das listas de escolha (novo orçamento, novo material) mas
+  /// continua existindo pra não quebrar orçamentos antigos que já o referenciam.
+  active            Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budgetItems BudgetItem[]
+  materials   ProcedureMaterial[]
+
+  @@index([clinicId])
+  @@map("procedures")
+}
+
+/// Quanto de cada item de estoque um procedimento consome por unidade
+/// executada. Base do custo estimado do procedimento (soma de
+/// quantityUsed × InventoryItem.unitCostCents) e da baixa automática de
+/// estoque quando o item do orçamento é finalizado.
+model ProcedureMaterial {
+  id              String        @id @default(cuid())
+  procedureId     String
+  procedure       Procedure     @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  quantityUsed    Int           @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([procedureId, inventoryItemId])
+  @@map("procedure_materials")
+}
+
+/// Item de estoque (material de consumo). quantityOnHand é o físico real;
+/// quantityReserved é reservado por orçamentos aprovados ainda não
+/// finalizados (ver BudgetItem.materialsReservedAt/executedAt) — a
+/// quantidade "livre" pra novos usos é quantityOnHand - quantityReserved.
+model InventoryItem {
+  id               String   @id @default(cuid())
+  clinicId         String
+  clinic           Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name             String
+  unit             String
+  unitCostCents    Int      @default(0)
+  quantityOnHand   Int      @default(0)
+  quantityReserved Int      @default(0)
+  minQuantity      Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procedureMaterials ProcedureMaterial[]
+  movements          InventoryMovement[]
+
+  @@index([clinicId])
+  @@map("inventory_items")
+}
+
+enum InventoryMovementType {
+  /// Entrada manual (compra/reposição registrada pelo admin).
+  MANUAL_IN
+  /// Saída manual (perda, validade vencida, ajuste de contagem).
+  MANUAL_OUT
+  /// Orçamento aprovado — reserva o material sem baixar o físico ainda.
+  RESERVED
+  /// Orçamento deixou de estar aprovado antes de ser finalizado — libera a reserva.
+  RELEASED
+  /// Item do orçamento finalizado — baixa real do físico.
+  CONSUMED
+}
+
+/// Histórico (auditoria) de toda entrada/saída/reserva de um item de estoque.
+model InventoryMovement {
+  id              String                @id @default(cuid())
+  clinicId        String
+  clinic          Clinic                @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem         @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  type            InventoryMovementType
+  /// Sempre positivo — o `type` indica a direção do movimento.
+  quantity        Int
+  note            String?
+  budgetItemId    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, inventoryItemId])
+  @@map("inventory_movements")
+}
+
+/// Orçamento apresentado ao paciente — agrupa itens de procedimento.
+model Budget {
+  id             String       @id @default(cuid())
+  clinicId       String
+  clinic         Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  status         BudgetStatus @default(PENDING)
+  validUntil     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items         BudgetItem[]
+  opportunities CRMOpportunity[]
+  contracts     Contract[]
+
+  @@index([clinicId, patientId])
+  @@map("budgets")
+}
+
+model BudgetItem {
+  id             String    @id @default(cuid())
+  budgetId       String
+  budget         Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  procedureId    String
+  procedure      Procedure @relation(fields: [procedureId], references: [id])
+  toothNumber    String?
+  quantity       Int       @default(1)
+  unitPriceCents Int
+  /// Setado quando o orçamento vira APPROVED — materiais reservados no estoque.
+  /// Volta a null se o orçamento sair de APPROVED antes de ser finalizado (reserva liberada).
+  materialsReservedAt DateTime?
+  /// Setado quando o procedimento é de fato finalizado — baixa real do estoque.
+  /// Depois disso o item não pode mais ser reservado/liberado, só existe o consumo já feito.
+  executedAt          DateTime?
+
+  @@map("budget_items")
+}
+
+/// Prontuário — entradas de evolução/anamnese/exame. Append-only (nunca editar/apagar).
+model ClinicalRecord {
+  id             String             @id @default(cuid())
+  clinicId       String
+  clinic         Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional       @relation(fields: [professionalId], references: [id])
+  appointmentId  String?
+  appointment    Appointment?       @relation(fields: [appointmentId], references: [id])
+  type           ClinicalRecordType
+  content        String
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, patientId])
+  @@map("clinical_records")
+}
+
+/// Histórico por dente — cada atualização cria uma nova linha (nunca sobrescreve).
+/// O estado "atual" de um dente é a linha mais recente para aquele toothNumber.
+model Odontogram {
+  id          String         @id @default(cuid())
+  clinicId    String
+  clinic      Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId   String
+  patient     Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  toothNumber Int
+  faces       String?
+  condition   ToothCondition
+  notes       String?
+  updatedBy   String?
+
+  updatedAt DateTime @default(now())
+
+  @@index([clinicId, patientId, toothNumber])
+  @@map("odontogram_entries")
+}
+
+/// Periograma — histórico por dente, mesmo padrão do Odontogram (cada
+/// atualização cria uma nova linha; o estado "atual" é a mais recente por
+/// toothNumber). Profundidades de sondagem em mm, 3 pontos vestibulares +
+/// 3 linguais/palatinos por dente.
+model PeriodontalEntry {
+  id          String  @id @default(cuid())
+  clinicId    String
+  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId   String
+  patient     Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  toothNumber Int
+
+  probingDepthBuccalMesial   Int?
+  probingDepthBuccalCentral  Int?
+  probingDepthBuccalDistal   Int?
+  probingDepthLingualMesial  Int?
+  probingDepthLingualCentral Int?
+  probingDepthLingualDistal  Int?
+  /// Grau de mobilidade dentária (0-3, classificação de Miller).
+  mobility  Int?
+  /// Retração gengival em mm.
+  recession Int?
+  bleeding  Boolean @default(false)
+  notes     String?
+  updatedBy String?
+
+  updatedAt DateTime @default(now())
+
+  @@index([clinicId, patientId, toothNumber])
+  @@map("periodontal_entries")
+}
+
+/// Ficha de anamnese — um registro por paciente (upsert), preenchido/editado
+/// ao longo do acompanhamento. Dados de identificação (RG/endereço/contato de
+/// emergência) ficam no Patient em si; aqui fica o conteúdo clínico da
+/// consulta inicial.
+model Anamnesis {
+  id        String  @id @default(cuid())
+  clinicId  String
+  clinic    Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId String  @unique
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  /// Motivo da consulta / queixa principal.
+  chiefComplaint  String?
+  /// O que o paciente espera alcançar com o tratamento.
+  expectedOutcome String?
+
+  // Dados de saúde (histórico médico relevante pra odontologia)
+  hasHypertension     Boolean @default(false)
+  hasDiabetes         Boolean @default(false)
+  hasHeartCondition   Boolean @default(false)
+  hasBleedingDisorder Boolean @default(false)
+  isPregnant          Boolean @default(false)
+  isSmoker            Boolean @default(false)
+  hasAllergies        Boolean @default(false)
+  allergyDetails      String?
+  currentMedications  String?
+  previousSurgeries   String?
+  otherHealthNotes    String?
+
+  // Higiene bucal
+  brushingFrequencyPerDay Int?
+  flossesRegularly        Boolean @default(false)
+  usesMouthwash           Boolean @default(false)
+  hasBruxism              Boolean @default(false)
+  oralHygieneNotes        String?
+
+  /// Declaração de livre consentimento pro tratamento em si (diferente do
+  /// consentLGPD do Patient, que é sobre uso/tratamento de dados pessoais).
+  treatmentConsentAt DateTime?
+  /// Consentimento específico pra uso de imagem (fotos clínicas, antes/depois, faceograma).
+  imageUseConsentAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("anamnesis_forms")
+}
+
+/// Uma opção dentro do plano de tratamento apresentado ao paciente — a
+/// clínica pede pelo menos 3 alternativas (ex.: "Opção 1: implante",
+/// "Opção 2: prótese", "Opção 3: manutenção"). Deliberadamente separado de
+/// Budget: aqui é a proposta/comparação em texto livre: o Budget que vira
+/// orçamento de verdade (com itens de procedimento e preço) é criado à parte
+/// quando o paciente escolhe uma das opções.
+model TreatmentPlanOption {
+  id             String        @id @default(cuid())
+  clinicId       String
+  clinic         Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String?
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+
+  label              String
+  description        String
+  estimatedCostCents Int?
+  recommended        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, patientId])
+  @@map("treatment_plan_options")
+}
+
+/// Imagem/documento do paciente (radiografia, foto, contrato). Armazenamento
+/// local em dev (ver DocumentsService); trocar por Cloudflare R2 em produção.
+model Document {
+  id         String       @id @default(cuid())
+  clinicId   String
+  clinic     Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId  String
+  patient    Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type       DocumentType
+  storageKey String
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+
+  createdAt DateTime @default(now())
+
+  facialPlannings FacialPlanning[]
+
+  @@index([clinicId, patientId])
+  @@map("documents")
+}
+
+/// Lançamento financeiro (fluxo de caixa) — receita ou despesa da clínica.
+model Transaction {
+  id             String          @id @default(cuid())
+  clinicId       String
+  clinic         Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  type           TransactionType
+  category       String
+  description    String?
+  amountCents    Int
+  dueDate        DateTime
+  paidAt         DateTime?
+  /// Só existe junto com `paidAt` — nulo enquanto pendente (e nos lançamentos
+  /// quitados antes deste campo existir).
+  paymentMethod  PaymentMethod?
+  /// Taxa retida pela operadora, congelada no momento do recebimento — a
+  /// clínica pode renegociar a taxa depois e o histórico não pode mudar.
+  feeCents       Int            @default(0)
+  /// Quando o dinheiro de fato cai na conta. Igual a `paidAt` em PIX/dinheiro;
+  /// em cartão, `paidAt` + o prazo configurado pela clínica.
+  settledAt      DateTime?
+  /// Parcelamento: um valor único dividido em N lançamentos. 3 e 10 = "3/10".
+  /// Nulos em lançamento à vista.
+  installmentNumber Int?
+  installmentTotal  Int?
+  professionalId String?
+  professional   Professional?   @relation(fields: [professionalId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  commissionEntry CommissionEntry?
+  invoice         Invoice?
+
+  @@index([clinicId, dueDate])
+  @@map("transactions")
+}
+
+/// Percentual de comissão de um profissional — usado para gerar CommissionEntry
+/// automaticamente quando uma Transaction de receita ligada a ele é paga.
+model CommissionRule {
+  id                    String  @id @default(cuid())
+  clinicId              String
+  clinic                Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  professionalId        String  @unique
+  professional          Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  /// percentual em pontos-base (3000 = 30,00%), para evitar ponto flutuante
+  percentageBasisPoints Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@map("commission_rules")
+}
+
+/// Comissão calculada automaticamente ao marcar uma Transaction como paga.
+model CommissionEntry {
+  id             String      @id @default(cuid())
+  clinicId       String
+  clinic         Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional @relation(fields: [professionalId], references: [id])
+  transactionId  String      @unique
+  transaction    Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  amountCents    Int
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, professionalId])
+  @@map("commission_entries")
+}
+
+/// Oportunidade do funil de vendas — paciente em conversa (kanban) ou orçamento
+/// pendente sendo acompanhado ("funil de orçamentos não aprovados").
+model CRMOpportunity {
+  id             String           @id @default(cuid())
+  clinicId       String
+  clinic         Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  budgetId       String?
+  budget         Budget?          @relation(fields: [budgetId], references: [id])
+  ownerId        String?
+  owner          Professional?    @relation(fields: [ownerId], references: [id])
+  stage          OpportunityStage @default(NEW)
+  title          String
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, stage])
+  @@map("crm_opportunities")
+}
+
+/// Indicação de um paciente para outro — "gerenciador de indicações" do plano.
+model Referral {
+  id                String         @id @default(cuid())
+  clinicId          String
+  clinic            Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  referrerPatientId String
+  referrerPatient   Patient        @relation("ReferralsMade", fields: [referrerPatientId], references: [id], onDelete: Cascade)
+  referredName      String
+  referredPhone     String?
+  referredPatientId String?
+  referredPatient   Patient?       @relation("ReferralsReceived", fields: [referredPatientId], references: [id])
+  status            ReferralStatus @default(PENDING)
+  rewardGranted     Boolean        @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId, status])
+  @@map("referrals")
+}
+
+/// Provedor escolhido pela clínica para cada tipo de integração — "mock"
+/// (padrão, grátis) ou o nome de um provedor real, quando plugado. Ver
+/// packages/integrations/* e o plano, seção "Padrão de adapter".
+model IntegrationConfig {
+  id           String          @id @default(cuid())
+  clinicId     String
+  clinic       Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  kind         IntegrationKind
+  providerName String          @default("mock")
+  enabled      Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clinicId, kind])
+  @@map("integration_configs")
+}
+
+/// Contrato/termo de consentimento assinado eletronicamente — ligado a um
+/// orçamento aprovado. O provedor mock não tem validade jurídica ICP-Brasil.
+model Contract {
+  id                 String         @id @default(cuid())
+  clinicId           String
+  clinic             Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId          String
+  patient            Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  budgetId           String?
+  budget             Budget?        @relation(fields: [budgetId], references: [id])
+  provider           String         @default("mock")
+  content            String
+  status             ContractStatus @default(PENDING)
+  externalEnvelopeId String?
+  signedAt           DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, patientId])
+  @@map("contracts")
+}
+
+enum CertificateType {
+  /// Atestado de comparecimento — só confirma presença na clínica num período.
+  ATTENDANCE
+  /// Atestado médico — afastamento de atividades por N dias.
+  MEDICAL
+}
+
+enum CertificateBeneficiary {
+  /// O próprio paciente.
+  PATIENT
+  /// Quem acompanhou o paciente na consulta (não tem cadastro próprio — só o nome).
+  COMPANION
+}
+
+/// Atestado de comparecimento ou médico, emitido pra o paciente ou pra quem o
+/// acompanhou na consulta. `content` é o texto final gerado na emissão —
+/// imutável depois (igual ao Contract), pra o atestado impresso continuar
+/// batendo com o que fica registrado mesmo se os dados do paciente mudarem depois.
+model Certificate {
+  id             String                 @id @default(cuid())
+  clinicId       String
+  clinic         Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional           @relation(fields: [professionalId], references: [id])
+
+  type          CertificateType
+  beneficiary   CertificateBeneficiary @default(PATIENT)
+  /// Obrigatório quando beneficiary = COMPANION.
+  companionName String?
+
+  visitDate     DateTime
+  /// Horários só fazem sentido pro atestado de comparecimento.
+  arrivalTime   String?
+  departureTime String?
+
+  /// Só pro atestado médico.
+  daysOff Int?
+  /// CID-10, opcional — paciente pode pedir atestado sem CID (privacidade).
+  cidCode String?
+
+  content String
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, patientId])
+  @@map("certificates")
+}
+
+/// Nota fiscal de serviço emitida para um lançamento financeiro de receita.
+model Invoice {
+  id            String        @id @default(cuid())
+  clinicId      String
+  clinic        Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  transactionId String        @unique
+  transaction   Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  provider      String        @default("mock")
+  externalId    String
+  status        InvoiceStatus @default(ISSUED)
+  pdfUrl        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId])
+  @@map("invoices")
+}
+
+/// Registro de consulta de score de crédito — exige consentimento prévio do
+/// paciente (LGPD, ver plano seção "Riscos"). Nunca usar para decisão real
+/// de crédito enquanto o provedor for "mock".
+model CreditScoreQuery {
+  id             String   @id @default(cuid())
+  clinicId       String
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  provider       String   @default("mock")
+  score          Int
+  riskBand       String
+  consentGivenAt DateTime
+
+  queriedAt DateTime @default(now())
+
+  @@index([clinicId, patientId])
+  @@map("credit_score_queries")
+}
+
+/// Fase 5 — tratamento ortodôntico contínuo (aparelho fixo ou alinhadores),
+/// com um cronograma de etapas (OrthodonticStep) para acompanhar trocas/ajustes.
+model OrthodonticTreatment {
+  id             String                     @id @default(cuid())
+  clinicId       String
+  clinic         Clinic                     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId      String
+  patient        Patient                    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  professional   Professional               @relation(fields: [professionalId], references: [id])
+  applianceType  OrthodonticApplianceType
+  status         OrthodonticTreatmentStatus @default(ACTIVE)
+  startedAt      DateTime
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps OrthodonticStep[]
+
+  @@index([clinicId, patientId])
+  @@map("orthodontic_treatments")
+}
+
+/// Uma etapa do cronograma ortodôntico (ex.: "troca do alinhador 3",
+/// "ajuste do aparelho fixo"). Ordenada por `sequence`.
+model OrthodonticStep {
+  id           String                @id @default(cuid())
+  treatmentId  String
+  treatment    OrthodonticTreatment  @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+  sequence     Int
+  description  String
+  scheduledFor DateTime?
+  completedAt  DateTime?
+  status       OrthodonticStepStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  @@index([treatmentId, sequence])
+  @@map("orthodontic_steps")
+}
+
+/// Faceograma — planejamento estético (HOF, Harmonização Orofacial) sobre uma
+/// foto do paciente. `overlayData` guarda os traçados feitos no canvas (JSON);
+/// cada nova análise cria uma versão nova (nunca sobrescreve a anterior).
+model FacialPlanning {
+  id          String   @id @default(cuid())
+  clinicId    String
+  clinic      Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version     Int      @default(1)
+  overlayData Json
+  notes       String?
+  createdBy   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, patientId])
+  @@map("facial_plannings")
+}
+
+/// Log de auditoria imutável — obrigatório para acesso a dado clínico (LGPD).
+model AuditLog {
+  id         String   @id @default(cuid())
+  clinicId   String
+  clinic     Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  entityType String
+  entityId   String
+  action     String // create | read | update | delete
+  metadata   Json?
+  ip         String?
+  occurredAt DateTime @default(now())
+
+  @@index([clinicId, entityType, entityId])
+  @@map("audit_logs")
+}
+
+/// Configuração global da plataforma (não por clínica) — linha única
+/// ("singleton"), editável só pelo dono via /plataforma/configuracoes.
+model PlatformSettings {
+  id                         String   @id @default("singleton")
+  /// Dias de inadimplência (sem `lastPaymentAt` renovado) até a clínica
+  /// perder acesso automaticamente. Também funciona como período de teste
+  /// implícito pra clínica recém-cadastrada que nunca pagou.
+  delinquencyGracePeriodDays Int      @default(14)
+  updatedAt                  DateTime @updatedAt
+
+  @@map("platform_settings")
+}
