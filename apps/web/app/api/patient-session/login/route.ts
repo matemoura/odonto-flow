@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, loginPatient } from "../../../../lib/api";
-import { SESSION_COOKIE_NAMES } from "../../../../lib/session";
+import { SESSION_COOKIE_BASE, SESSION_COOKIE_NAMES } from "../../../../lib/session";
 
 export async function POST(req: NextRequest) {
   const { clinicSlug, email } = await req.json();
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const { accessToken, patient } = await loginPatient(clinicSlug, email);
     const response = NextResponse.json({ patient });
     // Acompanha o `expiresIn: "24h"` do token de paciente em AuthService.loginPatientMock.
-    const cookieOptions = { httpOnly: true, sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 24 };
+    const cookieOptions = { ...SESSION_COOKIE_BASE, maxAge: 60 * 60 * 24 };
     response.cookies.set(SESSION_COOKIE_NAMES.patientToken, accessToken, cookieOptions);
     response.cookies.set(SESSION_COOKIE_NAMES.patientClinic, clinicSlug, cookieOptions);
     return response;

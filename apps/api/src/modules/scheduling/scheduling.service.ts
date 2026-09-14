@@ -232,6 +232,14 @@ export class SchedulingService {
       });
     }
 
+    // `select` explícito, nunca `include: { user: true }`.
+    //
+    // Esta rota é PÚBLICA e sem autenticação. Com `include` o Prisma devolve a
+    // linha inteira de `User` — incluindo `passwordHash` — e a de `Patient`
+    // inteira, com CPF, RG, endereço e contato de emergência. Como o paciente
+    // é localizado por telefone OU e-mail, qualquer pessoa que soubesse o
+    // telefone de alguém receberia a ficha completa dessa pessoa só marcando
+    // uma consulta. Aqui sai só o que a tela de confirmação mostra.
     const appointment = await this.prisma.appointment.create({
       data: {
         clinicId,
@@ -242,7 +250,13 @@ export class SchedulingService {
         status: "SCHEDULED",
         source: "public-booking",
       },
-      include: { patient: true, professional: { include: { user: true } } },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+        professional: { select: { id: true, user: { select: { name: true } } } },
+      },
     });
 
     await this.notifyAppointment(
@@ -356,7 +370,15 @@ export class SchedulingService {
   async updateStatus(clinicId: string, id: string, status: AppointmentStatus) {
     const appointment = await this.prisma.appointment.findFirst({
       where: { id, clinicId },
-      include: { patient: true, professional: { include: { user: true } } },
+      // Só os campos usados pela notificação. Buscar a linha inteira de `User`
+      // traria o `passwordHash` para a memória sem necessidade, e bastaria
+      // alguém trocar o `return updated` por `return appointment` para virar
+      // vazamento.
+      select: {
+        startAt: true,
+        patient: { select: { name: true, phone: true } },
+        professional: { select: { user: { select: { name: true } } } },
+      },
     });
     if (!appointment) {
       throw new NotFoundException("Consulta não encontrada.");

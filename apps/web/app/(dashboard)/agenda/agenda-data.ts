@@ -55,7 +55,19 @@ export type OcupacaoHora = "cheio" | "livre";
 export function buildAgendaView(appointments: AgendaAppointment[], now: Date, timeZone: string) {
   const ativos = appointments.filter((a) => a.status !== "CANCELLED");
 
-  const emAndamento = ativos.find((a) => new Date(a.startAt) <= now && now <= new Date(a.endAt)) ?? null;
+  // "Na cadeira" é STATUS, não relógio.
+  //
+  // Antes isto era só `startAt <= agora <= endAt`, e no segundo em que o
+  // horário marcado acabava o paciente sumia do painel — ainda sentado na
+  // cadeira. Consulta que passa do horário é o caso em que a recepção MAIS
+  // precisa ver quem está lá dentro.
+  //
+  // `FILLING_FORM` é o estado que o botão "Iniciar atendimento" grava (ver
+  // AgoraAcoes), e só sai dele quando alguém conclui. Sem ninguém iniciado,
+  // cai na janela de horário como antes.
+  const emAtendimento = ativos.find((a) => a.status === "FILLING_FORM") ?? null;
+  const dentroDoHorario = ativos.find((a) => new Date(a.startAt) <= now && now <= new Date(a.endAt)) ?? null;
+  const emAndamento = emAtendimento ?? dentroDoHorario;
 
   const proximas = ativos
     .filter((a) => a !== emAndamento && new Date(a.startAt) > now)

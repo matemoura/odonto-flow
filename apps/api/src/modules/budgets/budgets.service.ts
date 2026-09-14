@@ -15,7 +15,12 @@ export class BudgetsService {
   listForPatient(clinicId: string, patientId: string) {
     return this.prisma.budget.findMany({
       where: { clinicId, patientId },
-      include: { items: { include: { procedure: true } }, professional: { include: { user: true } } },
+      // `select` no user: `include` traria `passwordHash` de todo profissional
+      // para qualquer membro da equipe que abrisse a ficha de um paciente.
+      include: {
+        items: { include: { procedure: true } },
+        professional: { select: { id: true, user: { select: { name: true } } } },
+      },
       orderBy: { createdAt: "desc" },
     });
   }

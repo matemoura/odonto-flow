@@ -1,13 +1,17 @@
 import { cookies } from "next/headers";
 
-const STAFF_TOKEN_COOKIE = "dentista_session";
-const STAFF_REFRESH_COOKIE = "dentista_refresh";
-const STAFF_CLINIC_COOKIE = "dentista_clinic";
-const STAFF_ROLE_COOKIE = "dentista_role";
-const PATIENT_TOKEN_COOKIE = "dentista_patient_session";
-const PATIENT_CLINIC_COOKIE = "dentista_patient_clinic";
-const PLATFORM_TOKEN_COOKIE = "dentista_platform_session";
-const PLATFORM_REFRESH_COOKIE = "dentista_platform_refresh";
+// Prefixo `odontoflow_`. O nome do cookie aparece no inspetor do navegador,
+// então é parte do que a marca mostra — e o prefixo antigo (`dentista_`)
+// sobreviveu ao rebrand porque as conferências procuraram por `dentista-` e
+// `sereno`, e nenhuma das duas casa com `dentista_`.
+const STAFF_TOKEN_COOKIE = "odontoflow_session";
+const STAFF_REFRESH_COOKIE = "odontoflow_refresh";
+const STAFF_CLINIC_COOKIE = "odontoflow_clinic";
+const STAFF_ROLE_COOKIE = "odontoflow_role";
+const PATIENT_TOKEN_COOKIE = "odontoflow_patient_session";
+const PATIENT_CLINIC_COOKIE = "odontoflow_patient_clinic";
+const PLATFORM_TOKEN_COOKIE = "odontoflow_platform_session";
+const PLATFORM_REFRESH_COOKIE = "odontoflow_platform_refresh";
 
 export const SESSION_COOKIE_NAMES = {
   staffToken: STAFF_TOKEN_COOKIE,
@@ -23,6 +27,21 @@ export const SESSION_COOKIE_NAMES = {
 /** Access token dura 1h; cookies de clínica/papel e o refresh (30d) sobrevivem bem mais. */
 export const STAFF_ACCESS_COOKIE_MAX_AGE = 60 * 60; // 1h
 export const STAFF_REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30d
+
+/**
+ * Opções padrão de todo cookie de sessão.
+ *
+ * `secure` só fica ligado em produção porque o dev roda em http://localhost, e
+ * um cookie `secure` simplesmente não seria gravado ali — a sessão local
+ * quebraria sem erro visível. Em produção ele impede que o token trafegue em
+ * texto claro caso alguma requisição caia em HTTP.
+ */
+export const SESSION_COOKIE_BASE = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+};
 
 export async function getStaffSession() {
   const store = await cookies();

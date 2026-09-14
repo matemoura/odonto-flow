@@ -359,3 +359,47 @@ describe("SchedulingService.updateStatus", () => {
     expect(whatsapp.sendAppointmentConfirmation).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Regressão de um vazamento real: a rota pública devolvia o resultado de um
+ * `include: { patient: true, professional: { include: { user: true } } }`, ou
+ * seja, a linha inteira de `User` (com `passwordHash`) e a de `Patient` (com
+ * CPF, RG, endereço e contato de emergência) — numa rota sem autenticação
+ * nenhuma. E como o paciente é localizado por telefone OU e-mail, quem
+ * soubesse o telefone de alguém recebia a ficha completa dessa pessoa só
+ * marcando uma consulta.
+ *
+ * O teste olha o `select` pedido ao Prisma, não a resposta: o mock devolve o
+ * que mandarmos, então afirmar sobre a resposta não provaria nada.
+ */
+describe("SchedulingService.createPublicAppointment — superfície de dados da rota pública", () => {
+  it("pede select explícito e nunca a linha inteira de user ou patient", async () => {
+    const prisma = fakePrisma();
+    (prisma.patient.create as jest.Mock).mockResolvedValue({ id: "p-1", name: "Fulano", phone: "+5511900000000" });
+    (prisma.appointment.create as jest.Mock).mockResolvedValue({
+      id: "appt-1",
+      professional: { user: { name: "Dra. Ana" } },
+    });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await service.createPublicAppointment("clinic-1", {
+      professionalId: "prof-1",
+      date: PROXIMA_QUINTA,
+      time: "09:00",
+      patientName: "Fulano",
+      patientPhone: "+5511900000000",
+      consentLGPD: true,
+    });
+
+    const args = (prisma.appointment.create as jest.Mock).mock.calls[0][0];
+
+    expect(args.include).toBeUndefined();
+    expect(args.select).toBeDefined();
+    // Nada de paciente na resposta: a tela de confirmação não precisa, e quem
+    // chama a rota não está autenticado.
+    expect(args.select.patient).toBeUndefined();
+    // Do profissional, só o nome.
+    expect(args.select.professional.select.user.select).toEqual({ name: true });
+    expect(JSON.stringify(args.select)).not.toContain("passwordHash");
+  });
+});

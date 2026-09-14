@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getAgenda, getPublicClinic } from "../../../lib/api";
 import { getStaffSession } from "../../../lib/session";
 import { AppointmentStatusButton } from "./AppointmentStatusButton";
-import { AgoraAcoes } from "./AgoraAcoes";
+import { IlhaAtendimento } from "./IlhaAtendimento";
 import { AgendaNavegacao } from "./AgendaNavegacao";
 import { ListaDeConsultas } from "./ListaDeConsultas";
 import {
@@ -122,36 +122,11 @@ export default async function AgendaPage({
       {ehHoje ? (
         <>
           <div className={s.topo}>
-        {emAndamento ? (
-          <section className={`arco ${s.agora}`} aria-labelledby="agora-titulo">
-            <span className="rotulo rotulo--acento" id="agora-titulo">
-              Acontecendo agora
-            </span>
-            <div className={s.agoraLinha}>
-              <span className="hora-display">{toHHmm(emAndamento.startAt, timezone)}</span>
-              <div>
-                <strong className={s.agoraNome}>{emAndamento.patient.name}</strong>
-                <p className={s.agoraDetalhe}>com {emAndamento.professional.user.name}</p>
-              </div>
-            </div>
-            <div className={s.agoraAcoes}>
-              <AgoraAcoes
-                appointmentId={emAndamento.id}
-                patientId={emAndamento.patient.id}
-                currentStatus={emAndamento.status}
-              />
-            </div>
-          </section>
-        ) : (
-          <section className={`arco ${s.agora}`} aria-labelledby="agora-titulo">
-            <span className="rotulo rotulo--acento" id="agora-titulo">
-              Acontecendo agora
-            </span>
-            <p className={s.agoraDetalhe} style={{ marginTop: 10 }}>
-              Nenhum atendimento em andamento neste momento.
-            </p>
-          </section>
-        )}
+        <IlhaAtendimento
+          emAndamento={emAndamento}
+          proxima={proximas[0] ?? null}
+          timezone={timezone}
+        />
 
         <section className={`cartao ${s.recepcao}`} aria-labelledby="resumo-titulo">
           <span className="rotulo" id="resumo-titulo">

@@ -358,3 +358,160 @@
     flex-basis: 100%;
   }
 }
+
+/* --- ilha do atendimento ---------------------------------------------------
+   Recolhida é pílula; aberta vira ARCO — a forma-mãe declarada no globals.css.
+   É o que separa esta ilha de uma cápsula de iOS copiada: ela é deste produto.
+   -------------------------------------------------------------------------- */
+
+.ilha {
+  display: flex;
+  background: var(--consultorio);
+  color: var(--gaze);
+  box-shadow: var(--sombra-alta);
+  /* Uma transição só, na forma e no espaço, para abrir e fechar parecer um
+     movimento contínuo em vez de várias propriedades correndo em paralelo. */
+  transition:
+    border-radius 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* `align-self: start` é o que mantém a pílula sendo pílula: `.topo` é um grid
+   e o padrão `stretch` esticava a ilha até a altura do cartão ao lado — com
+   `border-radius: 999px` isso vira um losango gigante, não uma pílula. */
+.ilhaVazia {
+  align-self: start;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: var(--r-pill);
+}
+
+.ilhaVaziaTexto {
+  margin: 0;
+  font-size: 13.5px;
+  color: rgba(250, 247, 242, 0.78);
+}
+.ilhaVaziaProxima {
+  color: var(--gaze);
+  font-weight: 600;
+}
+
+.ilhaAberta {
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 24px 18px;
+  border-radius: var(--arco);
+}
+
+.ilhaTopo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ilhaRotulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(250, 247, 242, 0.7);
+}
+
+.ilhaRelogio {
+  margin-left: auto;
+  font-family: var(--fonte-ui);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* o número não dança a cada tique */
+  color: var(--menta);
+}
+
+/* O ponto respira só quando há alguém na cadeira. Num consultório vazio ele
+   fica parado: piscar sem motivo é ruído num painel que fica aberto o dia todo. */
+.ilhaPonto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--salvia);
+  flex: none;
+}
+.ilhaAberta .ilhaPonto {
+  background: var(--menta);
+  animation: ilha-pulso 2.4s ease-in-out infinite;
+}
+
+@keyframes ilha-pulso {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+.ilhaCorpo {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 4px;
+}
+.ilhaCorpo :global(.hora-display) {
+  color: var(--gaze);
+}
+
+.ilhaPessoa {
+  min-width: 0;
+}
+.ilhaNome {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+}
+.ilhaDetalhe {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: rgba(250, 247, 242, 0.72);
+}
+
+/* A barra DRENA: `scaleX` num filho, não `width`, porque transform anima na
+   GPU e não força recálculo de layout a cada tique. */
+.ilhaBarra {
+  position: relative;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(250, 247, 242, 0.18);
+  overflow: hidden;
+}
+.ilhaBarraCheia {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--menta);
+  transform-origin: left center;
+  transition: transform 600ms linear, background var(--transicao);
+}
+
+/* Estourou o horário: areia, não ameixa.
+   `--ameixa` puro some no verde escuro, e `--ameixa-suave` (#f0e2e7) tem
+   praticamente a mesma luminosidade da menta (#dcebe2) — sobre este fundo os
+   dois viram o mesmo branco-creme e o alerta não acontece. A areia é quente
+   contra a menta fria, e a temperatura já diz "atrasando" sozinha. Continua
+   sendo cor da paleta: nenhuma inventada para este estado. */
+.ilhaEstourada .ilhaBarraCheia {
+  background: var(--areia);
+}
+.ilhaEstourada .ilhaRelogio {
+  color: var(--areia);
+}
+
+.ilhaAcoes {
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ilha,
+  .ilhaBarraCheia {
+    transition: none;
+  }
+  .ilhaAberta .ilhaPonto {
+    animation: none;
+  }
+}
