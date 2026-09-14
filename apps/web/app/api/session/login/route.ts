@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, loginStaff } from "../../../../lib/api";
 import {
+  SESSION_COOKIE_BASE,
   SESSION_COOKIE_NAMES,
   STAFF_ACCESS_COOKIE_MAX_AGE,
   STAFF_REFRESH_COOKIE_MAX_AGE,
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   try {
     const { accessToken, refreshToken, user } = await loginStaff(clinicSlug, email, password);
     const response = NextResponse.json({ user });
-    const base = { httpOnly: true, sameSite: "lax" as const, path: "/" };
+    const base = SESSION_COOKIE_BASE;
     response.cookies.set(SESSION_COOKIE_NAMES.staffToken, accessToken, {
       ...base,
       maxAge: STAFF_ACCESS_COOKIE_MAX_AGE,

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, loginPlatformAdmin } from "../../../../lib/api";
-import { SESSION_COOKIE_NAMES, STAFF_ACCESS_COOKIE_MAX_AGE, STAFF_REFRESH_COOKIE_MAX_AGE } from "../../../../lib/session";
+import {
+  SESSION_COOKIE_BASE,
+  SESSION_COOKIE_NAMES,
+  STAFF_ACCESS_COOKIE_MAX_AGE,
+  STAFF_REFRESH_COOKIE_MAX_AGE,
+} from "../../../../lib/session";
 
 /** BFF de login do dono da plataforma — mesmo padrão do login de equipe, sem nenhuma clínica envolvida. */
 export async function POST(req: NextRequest) {
@@ -13,7 +18,7 @@ export async function POST(req: NextRequest) {
   try {
     const { accessToken, refreshToken, user } = await loginPlatformAdmin(email, password);
     const response = NextResponse.json({ user });
-    const base = { httpOnly: true, sameSite: "lax" as const, path: "/" };
+    const base = SESSION_COOKIE_BASE;
     response.cookies.set(SESSION_COOKIE_NAMES.platformToken, accessToken, {
       ...base,
       maxAge: STAFF_ACCESS_COOKIE_MAX_AGE,

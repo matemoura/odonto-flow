@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentOrganization } from "../../../../lib/api";
-import { getStaffSession, SESSION_COOKIE_NAMES } from "../../../../lib/session";
+import { getStaffSession, SESSION_COOKIE_BASE, SESSION_COOKIE_NAMES } from "../../../../lib/session";
 
 /**
  * Fase 6 — troca a clínica "ativa" da sessão para outra unidade da mesma
  * rede, sem novo login: o JWT do ORG_ADMIN já carrega uma membership virtual
  * para toda clínica da rede (ver AuthService.expandMembershipsWithOrgAdmin),
- * então só precisamos apontar o cookie `dentista_clinic` para o novo slug.
+ * então só precisamos apontar o cookie `odontoflow_clinic` para o novo slug.
  */
 export async function POST(req: NextRequest) {
   const session = await getStaffSession();
@@ -32,9 +32,7 @@ export async function POST(req: NextRequest) {
   // a autorização de verdade é sempre recalculada pela API a partir do JWT.
   const response = NextResponse.json({ clinicSlug: target.slug });
   response.cookies.set(SESSION_COOKIE_NAMES.staffClinic, target.slug, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    ...SESSION_COOKIE_BASE,
     maxAge: 60 * 60 * 8,
   });
   return response;
