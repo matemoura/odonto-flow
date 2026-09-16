@@ -202,6 +202,14 @@ model Clinic {
   /// Dias entre a venda no cartão e o dinheiro cair na conta (0 = na hora).
   cardSettlementDays Int @default(0)
 
+  /// Dias da semana em que a clínica atende, no padrão de `Date#getDay()`:
+  /// 0 = domingo … 6 = sábado. O admin define na tela de Organização.
+  ///
+  /// O padrão é segunda a sexta porque era exatamente a regra fixa que existia
+  /// antes em `availability.util.ts` — assim toda clínica já criada continua
+  /// com a agenda que tinha.
+  workingWeekdays Int[] @default([1, 2, 3, 4, 5])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

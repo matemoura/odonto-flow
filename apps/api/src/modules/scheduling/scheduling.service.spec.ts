@@ -6,7 +6,12 @@ import { zonedDateTimeToUtc } from "./timezone.util";
 
 function fakePrisma(overrides: Record<string, unknown> = {}) {
   return {
-    clinic: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: "America/Sao_Paulo" }) },
+    clinic: {
+      findUniqueOrThrow: jest
+        .fn()
+        .mockResolvedValue({ timezone: "America/Sao_Paulo", workingWeekdays: [1, 2, 3, 4, 5] }),
+      update: jest.fn(),
+    },
     appointment: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),

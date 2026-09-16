@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { Role } from "@odontoflow/db";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { TenantGuard } from "../../common/guards/tenant.guard";
@@ -9,12 +9,28 @@ import { CurrentUser, type AuthenticatedUser } from "../../common/decorators/cur
 import { SchedulingService } from "./scheduling.service";
 import { CreateAppointmentDto } from "./dto/create-appointment.dto";
 import { UpdateAppointmentStatusDto } from "./dto/update-appointment-status.dto";
+import { UpdateSchedulingSettingsDto } from "./dto/update-scheduling-settings.dto";
 
 @Controller("scheduling")
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Roles(Role.CLINIC_ADMIN, Role.DENTIST, Role.ASSISTANT, Role.ORG_ADMIN)
 export class SchedulingController {
   constructor(private readonly scheduling: SchedulingService) {}
+
+  /**
+   * Dias de atendimento da clínica. A leitura é liberada para toda a equipe
+   * (quem monta agenda precisa saber quando a clínica abre); só admin altera.
+   */
+  @Get("settings")
+  getSettings(@CurrentTenant() clinicId: string) {
+    return this.scheduling.getSchedulingSettings(clinicId);
+  }
+
+  @Put("settings")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  updateSettings(@CurrentTenant() clinicId: string, @Body() dto: UpdateSchedulingSettingsDto) {
+    return this.scheduling.updateSchedulingSettings(clinicId, dto.workingWeekdays);
+  }
 
   /** `days` (opcional, padrão 1) traz vários dias de uma vez — é o que a tela da semana usa. */
   @Get("agenda")

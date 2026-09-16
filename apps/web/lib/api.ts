@@ -728,6 +728,17 @@ export function updateCardSettings(clinicSlug: string, token: string, input: Car
   return request<CardSettings>("/finance/card-settings", { clinicSlug, token, method: "PUT", body: input });
 }
 
+/** Dias da semana em que a clínica atende: 0 = domingo … 6 = sábado. */
+export type SchedulingSettings = { workingWeekdays: number[] };
+
+export function getSchedulingSettings(clinicSlug: string, token: string) {
+  return request<SchedulingSettings>("/scheduling/settings", { clinicSlug, token });
+}
+
+export function updateSchedulingSettings(clinicSlug: string, token: string, input: SchedulingSettings) {
+  return request<SchedulingSettings>("/scheduling/settings", { clinicSlug, token, method: "PUT", body: input });
+}
+
 export function markTransactionPaid(
   clinicSlug: string,
   token: string,

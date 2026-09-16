@@ -70,6 +70,77 @@
   border-radius: var(--r-lg);
   background: var(--gaze);
 }
+.blocoTitulo {
+  margin: 0;
+  font-family: var(--fonte-ui);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Texto de apoio abaixo de um campo: explica a consequência da escolha sem
+   competir com o rótulo. */
+.dica {
+  margin: 10px 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--tinta-70);
+}
+
+/* --- seletor de dias de atendimento ---------------------------------------
+   Sete alvos numa linha que quebra sozinha. São pílulas e não uma lista de
+   checkbox porque a pergunta é "quais dias a clínica abre" — a semana inteira
+   precisa ser lida de uma vez, não item por item.
+   O <input> fica em .sr-only: o teclado e o leitor de tela continuam usando o
+   checkbox de verdade, e o foco aparece via :focus-within.
+   -------------------------------------------------------------------------- */
+.diasFieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.diaOpcao {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--r-pill);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tinta);
+  background: var(--branco);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transicao), border-color var(--transicao), color var(--transicao);
+}
+.diaOpcao:hover {
+  background: var(--menta);
+  border-color: var(--menta-borda);
+}
+.diaOpcao:focus-within {
+  outline: 3px solid var(--salvia);
+  outline-offset: 1px;
+}
+
+.diaOpcaoAtiva {
+  background: var(--consultorio);
+  border-color: var(--consultorio);
+  color: var(--gaze);
+}
+.diaOpcaoAtiva:hover {
+  background: var(--consultorio);
+  border-color: var(--consultorio);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diaOpcao {
+    transition: none;
+  }
+}
 
 /* Os campos fluem em colunas conforme o espaço, em vez de uma fila única e
    estreita com o resto da tela vazio ao lado. Em tela estreita vira 1 coluna. */
