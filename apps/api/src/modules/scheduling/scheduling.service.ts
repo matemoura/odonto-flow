@@ -4,7 +4,15 @@ import { PrismaService } from "../../database/prisma.service";
 import type { AuthenticatedUser } from "../../common/decorators/current-user.decorator";
 import { ehDentista, SEM_PROFISSIONAL } from "../../common/scope/dentist-scope.util";
 import { WhatsAppGatewayService } from "../integrations/whatsapp-gateway.service";
-import { getWorkingSlots, isClosedDay, isoDate, nextBookableDays, weekdayLabel, SLOT_DURATION_MINUTES } from "./availability.util";
+import {
+  atendeNoDia,
+  DIAS_PADRAO,
+  getWorkingSlots,
+  isoDate,
+  nextBookableDays,
+  weekdayLabel,
+  type ExpedienteDaClinica,
+} from "./availability.util";
 import { formatZonedIsoDate, formatZonedTime, getZonedParts, zonedDateTimeToUtc } from "./timezone.util";
 import { CreatePublicAppointmentDto } from "./dto/create-public-appointment.dto";
 import { CreateAppointmentDto } from "./dto/create-appointment.dto";
@@ -58,6 +66,78 @@ export class SchedulingService {
     return clinic.timezone;
   }
 
+  /**
+   * Fuso + dias de atendimento da clínica, numa consulta só — os dois andam
+   * sempre juntos em quem calcula agenda.
+   *
+   * Lista vazia cai no padrão: o banco tem `@default([1,2,3,4,5])`, mas uma
+   * clínica que salvou "nenhum dia" deixaria a agenda em silêncio total, sem
+   * erro nenhum. A validação do DTO exige ao menos um dia; isto é a rede
+   * embaixo dela.
+   */
+  private async getConfigDaClinica(
+    clinicId: string,
+  ): Promise<{ timezone: string; dias: number[]; expediente: ExpedienteDaClinica }> {
+    const clinic = await this.prisma.clinic.findUniqueOrThrow({
+      where: { id: clinicId },
+      select: {
+        timezone: true,
+        workingWeekdays: true,
+        morningStartMinutes: true,
+        morningEndMinutes: true,
+        afternoonStartMinutes: true,
+        afternoonEndMinutes: true,
+        slotDurationMinutes: true,
+      },
+    });
+    return {
+      timezone: clinic.timezone,
+      dias: clinic.workingWeekdays.length > 0 ? clinic.workingWeekdays : DIAS_PADRAO,
+      expediente: {
+        morningStartMinutes: clinic.morningStartMinutes,
+        morningEndMinutes: clinic.morningEndMinutes,
+        afternoonStartMinutes: clinic.afternoonStartMinutes,
+        afternoonEndMinutes: clinic.afternoonEndMinutes,
+        slotDurationMinutes: clinic.slotDurationMinutes,
+      },
+    };
+  }
+
+  /** Dias e expediente da clínica, para a tela de Organização. */
+  async getSchedulingSettings(clinicId: string) {
+    const { dias, expediente } = await this.getConfigDaClinica(clinicId);
+    return { workingWeekdays: dias, ...expediente };
+  }
+
+  async updateSchedulingSettings(
+    clinicId: string,
+    dto: { workingWeekdays: number[] } & ExpedienteDaClinica,
+  ) {
+    // Ordena e tira repetido: o valor chega de checkbox e a ordem da marcação
+    // não deveria virar a ordem guardada no banco.
+    const dias = [...new Set(dto.workingWeekdays)].sort((a, b) => a - b);
+    const clinic = await this.prisma.clinic.update({
+      where: { id: clinicId },
+      data: {
+        workingWeekdays: dias,
+        morningStartMinutes: dto.morningStartMinutes,
+        morningEndMinutes: dto.morningEndMinutes,
+        afternoonStartMinutes: dto.afternoonStartMinutes,
+        afternoonEndMinutes: dto.afternoonEndMinutes,
+        slotDurationMinutes: dto.slotDurationMinutes,
+      },
+      select: {
+        workingWeekdays: true,
+        morningStartMinutes: true,
+        morningEndMinutes: true,
+        afternoonStartMinutes: true,
+        afternoonEndMinutes: true,
+        slotDurationMinutes: true,
+      },
+    });
+    return clinic;
+  }
+
   /** Início/fim (em UTC) do dia civil `dateIso` no fuso da clínica. */
   private dayBoundsUtc(dateIso: string, timezone: string) {
     const start = zonedDateTimeToUtc(dateIso, "00:00", timezone);
@@ -75,7 +155,7 @@ export class SchedulingService {
    * também não devolve slot passado.
    */
   async getBookableDays(clinicId: string, professionalId: string, count = 6, fromIso?: string) {
-    const timezone = await this.getTimezone(clinicId);
+    const { timezone, dias, expediente } = await this.getConfigDaClinica(clinicId);
     const todayInClinic = getZonedParts(new Date(), timezone);
 
     let inicio = todayInClinic;
@@ -91,7 +171,10 @@ export class SchedulingService {
       }
     }
 
-    const days = nextBookableDays(inicio, count);
+    const days = nextBookableDays(inicio, count, dias);
+    // Clínica sem nenhum dia de atendimento: devolve lista vazia em vez de
+    // quebrar no `days[0]` logo abaixo.
+    if (days.length === 0) return [];
 
     const { start: from } = this.dayBoundsUtc(isoDate(days[0]), timezone);
     const { end: to } = this.dayBoundsUtc(isoDate(days[days.length - 1]), timezone);
@@ -106,44 +189,44 @@ export class SchedulingService {
       select: { startAt: true },
     });
 
-    const slotsPerDay = getWorkingSlots().length;
+    const slotsPerDay = getWorkingSlots(expediente).length;
     const bookedCountByDate = new Map<string, number>();
     for (const appt of appointments) {
       const key = formatZonedIsoDate(appt.startAt, timezone);
       bookedCountByDate.set(key, (bookedCountByDate.get(key) ?? 0) + 1);
     }
 
-    // Hoje só tem os horários que ainda não passaram — o dia continua listado
-    // (como sábado, que aparece fechado), mas "cheio" mais cedo se não sobrar
-    // horário livre no resto do expediente.
+    // Hoje só tem os horários que ainda não passaram — o dia continua listado,
+    // mas fica "cheio" mais cedo se não sobrar horário livre no expediente.
     const todayIso = isoDate(todayInClinic);
     const nowHora = `${String(todayInClinic.hour).padStart(2, "0")}:${String(todayInClinic.minute).padStart(2, "0")}`;
-    const remainingSlotsToday = getWorkingSlots().filter((hora) => hora > nowHora).length;
+    const remainingSlotsToday = getWorkingSlots(expediente).filter((hora) => hora > nowHora).length;
 
+    // `nextBookableDays` já devolve só dia de atendimento, então aqui "livre"
+    // depende apenas de sobrar horário.
     return days.map((day) => {
       const iso = isoDate(day);
-      const closed = isClosedDay(day.weekday);
       const booked = bookedCountByDate.get(iso) ?? 0;
       const totalSlots = iso === todayIso ? remainingSlotsToday : slotsPerDay;
       return {
         iso,
         semana: weekdayLabel(day),
         numero: String(day.day).padStart(2, "0"),
-        livre: !closed && booked < totalSlots,
+        livre: booked < totalSlots,
       };
     });
   }
 
   /** Horários livres de um profissional num dia específico. */
   async getAvailability(clinicId: string, professionalId: string, dateIso: string) {
-    const timezone = await this.getTimezone(clinicId);
+    const { timezone, dias, expediente } = await this.getConfigDaClinica(clinicId);
     const [year, month, day] = dateIso.split("-").map(Number);
     if (!year || !month || !day) {
       throw new BadRequestException("Data inválida.");
     }
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-    if (isClosedDay(weekday)) {
-      return getWorkingSlots().map((hora) => ({ hora, livre: false }));
+    if (!atendeNoDia(weekday, dias)) {
+      return getWorkingSlots(expediente).map((hora) => ({ hora, livre: false }));
     }
 
     const { start, end } = this.dayBoundsUtc(dateIso, timezone);
@@ -165,24 +248,25 @@ export class SchedulingService {
     const isHoje = dateIso === formatZonedIsoDate(now, timezone);
     const horaAtual = formatZonedTime(now, timezone);
 
-    return getWorkingSlots()
+    return getWorkingSlots(expediente)
       .filter((hora) => !isHoje || hora > horaAtual)
       .map((hora) => ({ hora, livre: !bookedTimes.has(hora) }));
   }
 
   /** Cria o agendamento vindo do link público — sem autenticação, cria o paciente se preciso. */
   async createPublicAppointment(clinicId: string, dto: CreatePublicAppointmentDto) {
-    const [professional, timezone] = await Promise.all([
+    const [professional, config] = await Promise.all([
       this.prisma.professional.findFirst({ where: { id: dto.professionalId, clinicId } }),
-      this.getTimezone(clinicId),
+      this.getConfigDaClinica(clinicId),
     ]);
     if (!professional) {
       throw new NotFoundException("Profissional não encontrado.");
     }
+    const { timezone, dias, expediente } = config;
 
     const [year, month, day] = dto.date.split("-").map(Number);
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
-    if (isClosedDay(weekday) || weekday === 0) {
+    if (!atendeNoDia(weekday, dias)) {
       throw new BadRequestException("A clínica não atende neste dia.");
     }
 
@@ -190,7 +274,7 @@ export class SchedulingService {
     if (startAt <= new Date()) {
       throw new BadRequestException("Esse horário já passou — escolha outro.");
     }
-    const endAt = new Date(startAt.getTime() + SLOT_DURATION_MINUTES * 60_000);
+    const endAt = new Date(startAt.getTime() + expediente.slotDurationMinutes * 60_000);
 
     const conflicting = await this.prisma.appointment.findFirst({
       where: {
@@ -331,15 +415,19 @@ export class SchedulingService {
   }
 
   async createInternalAppointment(clinicId: string, dto: CreateAppointmentDto) {
-    const [patient, professional] = await Promise.all([
+    const [patient, professional, config] = await Promise.all([
       this.prisma.patient.findFirst({ where: { id: dto.patientId, clinicId } }),
       this.prisma.professional.findFirst({ where: { id: dto.professionalId, clinicId } }),
+      this.getConfigDaClinica(clinicId),
     ]);
     if (!patient) throw new NotFoundException("Paciente não encontrado.");
     if (!professional) throw new NotFoundException("Profissional não encontrado.");
 
     const startAt = new Date(dto.startAt);
-    const endAt = new Date(startAt.getTime() + (dto.durationMinutes ?? SLOT_DURATION_MINUTES) * 60_000);
+    // A recepção ainda pode informar uma duração diferente para um caso
+    // específico; sem isso, vale o encaixe padrão da clínica.
+    const duracao = dto.durationMinutes ?? config.expediente.slotDurationMinutes;
+    const endAt = new Date(startAt.getTime() + duracao * 60_000);
 
     const conflicting = await this.prisma.appointment.findFirst({
       where: {

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "clinics" ADD COLUMN     "afternoonEndMinutes" INTEGER NOT NULL DEFAULT 1080,
+ADD COLUMN     "afternoonStartMinutes" INTEGER NOT NULL DEFAULT 780,
+ADD COLUMN     "morningEndMinutes" INTEGER NOT NULL DEFAULT 720,
+ADD COLUMN     "morningStartMinutes" INTEGER NOT NULL DEFAULT 480,
+ADD COLUMN     "slotDurationMinutes" INTEGER NOT NULL DEFAULT 40;

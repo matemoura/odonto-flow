@@ -6,7 +6,20 @@ import { zonedDateTimeToUtc } from "./timezone.util";
 
 function fakePrisma(overrides: Record<string, unknown> = {}) {
   return {
-    clinic: { findUniqueOrThrow: jest.fn().mockResolvedValue({ timezone: "America/Sao_Paulo" }) },
+    clinic: {
+      findUniqueOrThrow: jest.fn().mockResolvedValue({
+        timezone: "America/Sao_Paulo",
+        workingWeekdays: [1, 2, 3, 4, 5],
+        // Mesmos valores do @default do schema: sem eles o expediente vem
+        // `undefined` e a grade sai vazia, escondendo o que o teste mede.
+        morningStartMinutes: 480,
+        morningEndMinutes: 720,
+        afternoonStartMinutes: 780,
+        afternoonEndMinutes: 1080,
+        slotDurationMinutes: 40,
+      }),
+      update: jest.fn(),
+    },
     appointment: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
