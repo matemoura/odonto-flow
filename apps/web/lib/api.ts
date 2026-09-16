@@ -728,6 +728,28 @@ export function updateCardSettings(clinicSlug: string, token: string, input: Car
   return request<CardSettings>("/finance/card-settings", { clinicSlug, token, method: "PUT", body: input });
 }
 
+/**
+ * Dias e expediente da clínica. `workingWeekdays` usa o padrão de
+ * `Date#getDay()` (0 = domingo … 6 = sábado) e os horários são minutos desde a
+ * meia-noite (480 = 08:00).
+ */
+export type SchedulingSettings = {
+  workingWeekdays: number[];
+  morningStartMinutes: number;
+  morningEndMinutes: number;
+  afternoonStartMinutes: number;
+  afternoonEndMinutes: number;
+  slotDurationMinutes: number;
+};
+
+export function getSchedulingSettings(clinicSlug: string, token: string) {
+  return request<SchedulingSettings>("/scheduling/settings", { clinicSlug, token });
+}
+
+export function updateSchedulingSettings(clinicSlug: string, token: string, input: SchedulingSettings) {
+  return request<SchedulingSettings>("/scheduling/settings", { clinicSlug, token, method: "PUT", body: input });
+}
+
 export function markTransactionPaid(
   clinicSlug: string,
   token: string,

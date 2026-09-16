@@ -202,6 +202,30 @@ model Clinic {
   /// Dias entre a venda no cartão e o dinheiro cair na conta (0 = na hora).
   cardSettlementDays Int @default(0)
 
+  /// Dias da semana em que a clínica atende, no padrão de `Date#getDay()`:
+  /// 0 = domingo … 6 = sábado. O admin define na tela de Organização.
+  ///
+  /// O padrão é segunda a sexta porque era exatamente a regra fixa que existia
+  /// antes em `availability.util.ts` — assim toda clínica já criada continua
+  /// com a agenda que tinha.
+  workingWeekdays Int[] @default([1, 2, 3, 4, 5])
+
+  /// Expediente, em MINUTOS desde a meia-noite (480 = 08:00). Guardar minuto e
+  /// não "08:00" evita string inválida no banco e torna comparação e soma
+  /// aritmética simples — o formato "HH:mm" existe só na borda (tela e API de
+  /// slots).
+  ///
+  /// São duas janelas porque o almoço fecha o consultório. Clínica que não para
+  /// para almoçar põe as duas coladas (manhã 08:00–12:00, tarde 12:00–18:00).
+  /// Os padrões são exatamente a regra fixa que existia antes.
+  morningStartMinutes   Int @default(480)  // 08:00
+  morningEndMinutes     Int @default(720)  // 12:00
+  afternoonStartMinutes Int @default(780)  // 13:00
+  afternoonEndMinutes   Int @default(1080) // 18:00
+
+  /// Duração de cada encaixe da agenda.
+  slotDurationMinutes Int @default(40)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -4,8 +4,10 @@ import {
   getCurrentOrganization,
   getOrganizationDashboard,
   getPatients,
+  getSchedulingSettings,
 } from "../../../lib/api";
 import { getStaffSession } from "../../../lib/session";
+import { DiasDeAtendimentoForm } from "./DiasDeAtendimentoForm";
 import { CreateOrJoinOrganization } from "./CreateOrJoinOrganization";
 import { TransferPatientForm } from "./TransferPatientForm";
 import { SyncProceduresButton } from "./SyncProceduresButton";
@@ -47,10 +49,26 @@ export default async function OrganizacoesPage() {
 
   const { organization, isOrgAdmin } = data;
 
+  const scheduling = await getSchedulingSettings(session.clinicSlug, session.token).catch(() => null);
+
+  /**
+   * Dias de atendimento são configuração da CLÍNICA, não da rede — por isso
+   * aparecem nos dois caminhos desta tela. Deixar só no bloco da rede
+   * esconderia a configuração de toda clínica que ainda não entrou em uma, que
+   * é a maioria.
+   */
+  const blocoDiasDeAtendimento = scheduling ? (
+    <section className={s.bloco}>
+      <h2 className={s.blocoTitulo}>Agenda da clínica</h2>
+      <DiasDeAtendimentoForm settings={scheduling} />
+    </section>
+  ) : null;
+
   if (!organization) {
     return (
       <div className={s.pagina}>
         <h1 className={s.titulo}>Organização</h1>
+        {blocoDiasDeAtendimento}
         <p style={{ fontSize: 13, color: "var(--tinta-55)" }}>
           Sua clínica ainda não faz parte de uma rede. Crie uma rede para agrupar várias unidades sob o mesmo
           painel, ou entre numa rede existente com o código (ID) que o administrador dela te passar.
@@ -78,6 +96,8 @@ export default async function OrganizacoesPage() {
       </p>
 
       <ClinicSwitcher clinics={organization.clinics} currentSlug={session.clinicSlug} />
+
+      {blocoDiasDeAtendimento}
 
       {!isOrgAdmin ? (
         <p style={{ fontSize: 13, color: "var(--tinta-55)" }}>
