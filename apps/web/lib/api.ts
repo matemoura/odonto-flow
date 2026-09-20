@@ -3,7 +3,7 @@
  * Components/Route Handlers (Node) quanto em Client Components (browser) —
  * o CORS da API já libera a origem de NEXT_PUBLIC_API_URL/WEB_APP_URL.
  */
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
+import { API_URL } from "./api-url";
 
 export class ApiError extends Error {
   constructor(
@@ -148,6 +148,29 @@ export type CashFlowSummary = {
 };
 
 export type CardSettings = { cardFeeBasisPoints: number; cardSettlementDays: number };
+
+/**
+ * Rótulos de enum do banco. O status vinha direto para a tela com
+ * `.toLowerCase()`, então a clínica lia "NF-e failed" e "Contrato pending" —
+ * justamente nos estados de erro, quando o usuário mais precisa entender o que
+ * aconteceu.
+ */
+export type InvoiceStatus = "ISSUED" | "PROCESSING" | "FAILED" | "CANCELLED";
+
+export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
+  ISSUED: "emitida",
+  PROCESSING: "em processamento",
+  FAILED: "falhou",
+  CANCELLED: "cancelada",
+};
+
+export type ContractStatus = "PENDING" | "SIGNED" | "DECLINED";
+
+export const CONTRACT_STATUS_LABEL: Record<ContractStatus, string> = {
+  PENDING: "aguardando assinatura",
+  SIGNED: "assinado",
+  DECLINED: "recusado",
+};
 
 /* --- agendamento público --------------------------------------------------- */
 
@@ -343,7 +366,16 @@ export function getAgenda(clinicSlug: string, token: string, date: string, dias 
 export function createInternalAppointment(
   clinicSlug: string,
   token: string,
-  input: { patientId: string; professionalId: string; startAt: string; durationMinutes?: number; notes?: string },
+  // `date` ("YYYY-MM-DD") e `time` ("HH:mm") separados, no fuso da clínica —
+  // quem monta o instante é a API. Ver CreateAppointmentDto.
+  input: {
+    patientId: string;
+    professionalId: string;
+    date: string;
+    time: string;
+    durationMinutes?: number;
+    notes?: string;
+  },
 ) {
   return request<AgendaAppointment>("/scheduling/appointments", {
     clinicSlug,
@@ -369,8 +401,39 @@ export function updateAppointmentStatus(
 
 /* --- pacientes (staff) -------------------------------------------------------- */
 
-export function getPatients(clinicSlug: string, token: string, search?: string) {
-  return request<Patient[]>(`/patients${search ? `?search=${encodeURIComponent(search)}` : ""}`, {
+/** Uma página de resultados, com o total para a tela poder dizer "1 de 12". */
+export type Pagina<T> = {
+  itens: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalDePaginas: number;
+};
+
+/** Listagem paginada — a tela de Pacientes. Para preencher um seletor, use `getPatientOptions`. */
+export function getPatients(
+  clinicSlug: string,
+  token: string,
+  search?: string,
+  paginacao: { page?: number; pageSize?: number } = {},
+) {
+  const query = new URLSearchParams();
+  if (search) query.set("search", search);
+  if (paginacao.page) query.set("page", String(paginacao.page));
+  if (paginacao.pageSize) query.set("pageSize", String(paginacao.pageSize));
+  const sufixo = query.toString();
+  return request<Pagina<Patient>>(`/patients${sufixo ? `?${sufixo}` : ""}`, { clinicSlug, token });
+}
+
+export type PatientOption = { id: string; name: string };
+
+/**
+ * Id e nome de todos os pacientes, para seletor. Não é paginado de propósito —
+ * `<select>` com 25 de 900 esconde quem se procura. `truncado` avisa quando a
+ * clínica passou do teto e precisa de um seletor com busca.
+ */
+export function getPatientOptions(clinicSlug: string, token: string) {
+  return request<{ itens: PatientOption[]; truncado: boolean }>("/patients/opcoes", {
     clinicSlug,
     token,
   });
@@ -434,6 +497,48 @@ export const TOOTH_CONDITION_LABEL: Record<string, string> = {
 };
 
 export type ToothCondition = keyof typeof TOOTH_CONDITION_LABEL;
+
+/* --- evolução clínica (prontuário) ---------------------------------------- */
+
+/** `ANAMNESIS` existe no enum do banco mas é gravada pela ficha própria, não aqui. */
+export type ClinicalRecordType = "EVOLUTION" | "EXAM";
+
+export const CLINICAL_RECORD_TYPE_LABEL: Record<ClinicalRecordType, string> = {
+  EVOLUTION: "Evolução",
+  EXAM: "Exame",
+};
+
+export type ClinicalRecord = {
+  id: string;
+  type: ClinicalRecordType;
+  content: string;
+  createdAt: string;
+  appointmentId: string | null;
+  professionalSignature: string | null;
+  professionalSignedAt: string | null;
+  patientSignature: string | null;
+  patientSignedAt: string | null;
+  professional: { user: { name: string } };
+};
+
+export function getClinicalRecords(clinicSlug: string, token: string, patientId: string) {
+  return request<ClinicalRecord[]>(`/clinical-records?patientId=${patientId}`, { clinicSlug, token });
+}
+
+export function createClinicalRecord(
+  clinicSlug: string,
+  token: string,
+  input: {
+    patientId: string;
+    type: ClinicalRecordType;
+    content: string;
+    appointmentId?: string;
+    professionalSignature?: string;
+    patientSignature?: string;
+  },
+) {
+  return request<ClinicalRecord>("/clinical-records", { clinicSlug, token, method: "POST", body: input });
+}
 
 export type OdontogramEntry = {
   toothNumber: number;
@@ -517,6 +622,8 @@ export type Anamnesis = {
   hasBleedingDisorder: boolean;
   isPregnant: boolean;
   isSmoker: boolean;
+  hasChronicKidneyDisease: boolean;
+  hasCancerOrImmunosuppression: boolean;
   hasAllergies: boolean;
   allergyDetails: string | null;
   currentMedications: string | null;
@@ -770,6 +877,34 @@ export function getCommissionRules(clinicSlug: string, token: string) {
   return request<CommissionRule[]>("/finance/commission-rules", { clinicSlug, token });
 }
 
+export type CommissionEntry = {
+  id: string;
+  amountCents: number;
+  createdAt: string;
+  professional: { id: string; user: { name: string } };
+  transaction: {
+    category: string;
+    dueDate: string;
+    paidAt: string | null;
+    amountCents: number;
+    patient: { name: string } | null;
+  };
+};
+
+/** Fechamento de comissão do período — quanto cada profissional tem a receber. */
+export type CommissionReport = {
+  totalCents: number;
+  porProfissional: { professionalId: string; nome: string; totalCents: number; quantidade: number }[];
+  entries: CommissionEntry[];
+};
+
+export function getCommissionReport(clinicSlug: string, token: string, from: string, to: string) {
+  return request<CommissionReport>(`/finance/commission-report?from=${from}&to=${to}`, {
+    clinicSlug,
+    token,
+  });
+}
+
 /* --- CRM (staff) --------------------------------------------------------------- */
 
 export type OpportunityStage = "NEW" | "CONTACTED" | "BUDGET_SENT" | "NEGOTIATING" | "WON" | "LOST";
@@ -856,24 +991,56 @@ export function updateReferralStatus(
 
 export type IntegrationKind = "WHATSAPP" | "AI_ASSISTANT" | "NFE" | "E_SIGNATURE" | "CREDIT_SCORE";
 
-export type IntegrationConfigDto = { kind: IntegrationKind; providerName: string; enabled: boolean };
+/**
+ * O que a clínica vê: só as integrações que o dono da plataforma liberou, mais
+ * o que é dela para preencher. Não existe rota de trocar provedor aqui — isso
+ * é `/platform-admin/integrations`, e a API recusa, não é só a tela que esconde.
+ */
+export type ClinicIntegrationsView = {
+  whatsappPhone: string | null;
+  integrations: { kind: IntegrationKind; providerName: string }[];
+};
 
 export function getIntegrationsConfig(clinicSlug: string, token: string) {
-  return request<IntegrationConfigDto[]>("/integrations/config", { clinicSlug, token });
+  return request<ClinicIntegrationsView>("/integrations/config", { clinicSlug, token });
 }
 
-export function updateIntegrationConfig(
+export function updateClinicIntegrationSettings(
   clinicSlug: string,
   token: string,
-  kind: IntegrationKind,
-  input: { providerName: string; enabled?: boolean },
+  input: { whatsappPhone: string | null },
 ) {
-  return request<IntegrationConfigDto>(`/integrations/config/${kind}`, {
+  return request<ClinicIntegrationsView>("/integrations/config/settings", {
     clinicSlug,
     token,
     method: "PUT",
     body: input,
   });
+}
+
+/* --- integrações (dono da plataforma) ------------------------------------------- */
+
+export type PlatformClinicIntegrations = {
+  id: string;
+  name: string;
+  slug: string;
+  integrations: { kind: IntegrationKind; providerName: string; enabled: boolean }[];
+};
+
+export function getPlatformIntegrations(token: string) {
+  return request<PlatformClinicIntegrations[]>("/platform-admin/integrations", { token });
+}
+
+export function releaseIntegration(
+  token: string,
+  clinicId: string,
+  kind: IntegrationKind,
+  input: { enabled: boolean; providerName?: string },
+) {
+  return request<{ kind: IntegrationKind; providerName: string; enabled: boolean }>(
+    `/platform-admin/integrations/${clinicId}/${kind}`,
+    { token, method: "PUT", body: input },
+  );
 }
 
 /* --- serviços (procedimentos), estoque e materiais (staff) ----------------------- */
@@ -884,6 +1051,16 @@ export type ProcedureMaterial = {
   inventoryItem: { id: string; name: string; unit: string; unitCostCents: number };
 };
 
+export type ProcedurePrescriptionItem = {
+  id: string;
+  medicationId: string | null;
+  medication: Medication | null;
+  customName: string | null;
+  posology: string;
+  instructions: string | null;
+  order: number;
+};
+
 export type Procedure = {
   id: string;
   name: string;
@@ -891,6 +1068,7 @@ export type Procedure = {
   defaultPriceCents: number;
   active: boolean;
   materials: ProcedureMaterial[];
+  prescriptionItems: ProcedurePrescriptionItem[];
   estimatedCostCents: number;
 };
 
@@ -975,6 +1153,48 @@ export function updateProcedureMaterial(
 
 export function removeProcedureMaterial(clinicSlug: string, token: string, procedureId: string, materialId: string) {
   return request<void>(`/procedures/${procedureId}/materials/${materialId}`, {
+    clinicSlug,
+    token,
+    method: "DELETE",
+  });
+}
+
+export function addProcedurePrescriptionItem(
+  clinicSlug: string,
+  token: string,
+  procedureId: string,
+  input: { medicationId?: string; customName?: string; posology: string; instructions?: string },
+) {
+  return request<ProcedurePrescriptionItem>(`/procedures/${procedureId}/prescription-items`, {
+    clinicSlug,
+    token,
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateProcedurePrescriptionItem(
+  clinicSlug: string,
+  token: string,
+  procedureId: string,
+  itemId: string,
+  input: Partial<{ posology: string; instructions: string }>,
+) {
+  return request<ProcedurePrescriptionItem>(`/procedures/${procedureId}/prescription-items/${itemId}`, {
+    clinicSlug,
+    token,
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function removeProcedurePrescriptionItem(
+  clinicSlug: string,
+  token: string,
+  procedureId: string,
+  itemId: string,
+) {
+  return request<void>(`/procedures/${procedureId}/prescription-items/${itemId}`, {
     clinicSlug,
     token,
     method: "DELETE",
@@ -1097,8 +1317,20 @@ export function createBudget(
   return request<Budget>("/budgets", { clinicSlug, token, method: "POST", body: input });
 }
 
-export function updateBudgetStatus(clinicSlug: string, token: string, id: string, status: Budget["status"]) {
-  return request<Budget>(`/budgets/${id}/status`, { clinicSlug, token, method: "PATCH", body: { status } });
+export function updateBudgetStatus(
+  clinicSlug: string,
+  token: string,
+  id: string,
+  status: Budget["status"],
+  /** Condição de pagamento — lida só ao APROVAR, e só na primeira vez. */
+  pagamento: { installments?: number; firstDueDate?: string } = {},
+) {
+  return request<Budget>(`/budgets/${id}/status`, {
+    clinicSlug,
+    token,
+    method: "PATCH",
+    body: { status, ...pagamento },
+  });
 }
 
 export function executeBudgetItem(clinicSlug: string, token: string, budgetId: string, itemId: string) {
@@ -1163,6 +1395,88 @@ export function createCertificate(
 
 export function deleteCertificate(clinicSlug: string, token: string, id: string) {
   return request<void>(`/certificates/${id}`, { clinicSlug, token, method: "DELETE" });
+}
+
+/* --- receitas (staff) ------------------------------------------------------------- */
+
+export type MedicationClass = "ANALGESIC" | "NSAID" | "CORTICOSTEROID" | "ANTIBIOTIC" | "ANTISEPTIC";
+
+export type RiskFlag =
+  | "HYPERTENSION"
+  | "DIABETES"
+  | "HEART_CONDITION"
+  | "BLEEDING_DISORDER"
+  | "PREGNANT"
+  | "CHRONIC_KIDNEY_DISEASE"
+  | "CANCER_OR_IMMUNOSUPPRESSION";
+
+export const RISK_FLAG_LABEL: Record<RiskFlag, string> = {
+  HYPERTENSION: "Hipertensão",
+  DIABETES: "Diabetes",
+  HEART_CONDITION: "Problema cardíaco",
+  BLEEDING_DISORDER: "Distúrbio de coagulação",
+  PREGNANT: "Gestante",
+  CHRONIC_KIDNEY_DISEASE: "Insuficiência renal crônica",
+  CANCER_OR_IMMUNOSUPPRESSION: "Câncer/imunossupressão",
+};
+
+export type MedicationRiskNote = {
+  riskFlag: RiskFlag;
+  severity: "AVOID" | "CAUTION";
+  note: string;
+};
+
+export type Medication = {
+  id: string;
+  name: string;
+  class: MedicationClass;
+  defaultPosology: string;
+  notes: string | null;
+  riskNotes: MedicationRiskNote[];
+};
+
+export function getMedications(clinicSlug: string, token: string) {
+  return request<Medication[]>("/medications", { clinicSlug, token });
+}
+
+export type PrescriptionItem = {
+  id: string;
+  medicationName: string;
+  posology: string;
+  instructions: string | null;
+  order: number;
+};
+
+export type Prescription = {
+  id: string;
+  notes: string | null;
+  riskWarningsShown: string | null;
+  content: string;
+  createdAt: string;
+  items: PrescriptionItem[];
+  professional: { croNumber?: string | null; user: { name: string } };
+};
+
+export function getPrescriptions(clinicSlug: string, token: string, patientId: string) {
+  return request<Prescription[]>(`/prescriptions?patientId=${patientId}`, { clinicSlug, token });
+}
+
+export function getPrescription(clinicSlug: string, token: string, id: string) {
+  return request<Prescription>(`/prescriptions/${id}`, { clinicSlug, token });
+}
+
+export function createPrescription(
+  clinicSlug: string,
+  token: string,
+  input: {
+    patientId: string;
+    appointmentId?: string;
+    procedureId?: string;
+    notes?: string;
+    items: { medicationId?: string; customName?: string; posology: string; instructions?: string }[];
+  },
+) {
+  return request<Prescription>("/prescriptions", { clinicSlug, token, method: "POST", body: input });
 }
 
 /* --- consulta de score (staff) --------------------------------------------------- */

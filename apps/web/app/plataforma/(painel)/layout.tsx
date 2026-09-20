@@ -16,6 +16,7 @@ export default async function PainelPlataformaLayout({ children }: { children: R
         <nav className={s.nav}>
           <Link href="/plataforma">Clínicas</Link>
           <Link href="/plataforma/metricas">Métricas</Link>
+          <Link href="/plataforma/integracoes">Integrações</Link>
           <Link href="/plataforma/configuracoes">Configurações</Link>
         </nav>
         <LogoutButton />

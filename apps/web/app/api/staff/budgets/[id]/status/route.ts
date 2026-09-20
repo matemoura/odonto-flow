@@ -9,9 +9,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const { id } = await params;
-  const { status } = await req.json();
+  const { status, installments, firstDueDate } = await req.json();
   try {
-    const budget = await updateBudgetStatus(session.clinicSlug, session.token, id, status);
+    const budget = await updateBudgetStatus(session.clinicSlug, session.token, id, status, {
+      installments,
+      firstDueDate,
+    });
     return NextResponse.json(budget);
   } catch (error) {
     if (error instanceof ApiError) {

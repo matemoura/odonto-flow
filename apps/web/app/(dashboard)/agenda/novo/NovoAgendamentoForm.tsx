@@ -4,14 +4,14 @@ import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import type { Patient, StaffProfessional } from "../../../../lib/api";
+import type { PatientOption, StaffProfessional } from "../../../../lib/api";
 import s from "../../admin.module.css";
 
 export function NovoAgendamentoForm({
   patients,
   professionals,
 }: {
-  patients: Patient[];
+  patients: PatientOption[];
   professionals: StaffProfessional[];
 }) {
   const router = useRouter();
@@ -35,7 +35,12 @@ export function NovoAgendamentoForm({
         body: JSON.stringify({
           patientId,
           professionalId,
-          startAt: new Date(`${date}T${time}`).toISOString(),
+          // Data e hora cruas: quem converte para instante é a API, no fuso da
+          // clínica. Montar um `Date` aqui usaria o fuso da máquina de quem
+          // preenche — e a consulta cairia no horário errado para quem
+          // trabalha de outro fuso.
+          date,
+          time,
           durationMinutes: Number(durationMinutes),
           notes: notes || undefined,
         }),

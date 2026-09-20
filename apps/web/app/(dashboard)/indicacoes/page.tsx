@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPatients, getReferrals } from "../../../lib/api";
+import { getPatientOptions, getReferrals } from "../../../lib/api";
 import { getStaffSession } from "../../../lib/session";
 import { NovaIndicacaoForm } from "./NovaIndicacaoForm";
 import { ReferralStatusButton } from "./ReferralStatusButton";
@@ -22,7 +22,7 @@ export default async function IndicacoesPage() {
   try {
     [referrals, patients] = await Promise.all([
       getReferrals(session.clinicSlug, session.token),
-      getPatients(session.clinicSlug, session.token),
+      getPatientOptions(session.clinicSlug, session.token),
     ]);
   } catch {
     return (
@@ -41,7 +41,7 @@ export default async function IndicacoesPage() {
         Pacientes que indicaram amigos e familiares para a clínica.
       </p>
 
-      <NovaIndicacaoForm patients={patients} />
+      <NovaIndicacaoForm patients={patients.itens} />
 
       {referrals.length === 0 ? (
         <p className={s.vazio}>Nenhuma indicação registrada ainda.</p>

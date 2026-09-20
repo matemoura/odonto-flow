@@ -3,14 +3,14 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import type { Patient, StaffProfessional } from "../../../lib/api";
+import type { PatientOption, StaffProfessional } from "../../../lib/api";
 import s from "../admin.module.css";
 
 export function NovaOportunidadeForm({
   patients,
   professionals,
 }: {
-  patients: Patient[];
+  patients: PatientOption[];
   professionals: StaffProfessional[];
 }) {
   const router = useRouter();

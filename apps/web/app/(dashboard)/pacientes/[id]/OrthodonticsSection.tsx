@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import type { OrthodonticApplianceType, OrthodonticTreatment, StaffProfessional } from "../../../../lib/api";
 import s from "../../admin.module.css";
+import { formatarData } from "../../../../lib/datas";
+import { useFusoDaClinica } from "../../FusoDaClinica";
+import { FalhaAoCarregar } from "./FalhaAoCarregar";
 
 const APPLIANCE_LABEL: Record<OrthodonticApplianceType, string> = {
   METALLIC_BRACKETS: "Aparelho fixo metálico",
@@ -22,6 +25,7 @@ const TREATMENT_STATUS_LABEL: Record<string, string> = {
 };
 
 function TreatmentCard({ treatment }: { treatment: OrthodonticTreatment }) {
+  const fuso = useFusoDaClinica();
   const router = useRouter();
   const [addingStep, setAddingStep] = useState(false);
   const [descricao, setDescricao] = useState("");
@@ -94,7 +98,7 @@ function TreatmentCard({ treatment }: { treatment: OrthodonticTreatment }) {
         <span className="chip chip--estatico">{TREATMENT_STATUS_LABEL[treatment.status]}</span>
       </div>
       <span style={{ fontSize: 12, color: "var(--tinta-55)" }}>
-        Início em {new Intl.DateTimeFormat("pt-BR").format(new Date(treatment.startedAt))}
+        Início em {formatarData(treatment.startedAt, fuso)}
         {treatment.notes ? ` — ${treatment.notes}` : ""}
       </span>
 
@@ -157,12 +161,14 @@ export function OrthodonticsSection({
   professionals,
 }: {
   patientId: string;
-  treatments: OrthodonticTreatment[];
-  professionals: StaffProfessional[];
+  treatments: OrthodonticTreatment[] | null;
+  professionals: StaffProfessional[] | null;
 }) {
   const router = useRouter();
+  // Nulo = falha de leitura, não ausência de cadastro (ver FalhaAoCarregar).
+  const profissionaisDisponiveis = professionals ?? [];
   const [aberto, setAberto] = useState(false);
-  const [professionalId, setProfessionalId] = useState(professionals[0]?.id ?? "");
+  const [professionalId, setProfessionalId] = useState(profissionaisDisponiveis[0]?.id ?? "");
   const [applianceType, setApplianceType] = useState<OrthodonticApplianceType>("ALIGNERS");
   const [startedAt, setStartedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
@@ -197,7 +203,9 @@ export function OrthodonticsSection({
     <section className={s.bloco}>
       <h2 style={{ fontSize: 14, fontWeight: 600 }}>Ortodontia</h2>
 
-      {treatments.length === 0 ? (
+      {treatments === null ? (
+        <FalhaAoCarregar oQue="os tratamentos ortodônticos" />
+      ) : treatments.length === 0 ? (
         <p className={s.vazio}>Nenhum tratamento ortodôntico ainda.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -221,7 +229,7 @@ export function OrthodonticsSection({
           <div className={s.campo}>
             <label className={s.rotuloCampo}>Profissional</label>
             <select className={s.input} value={professionalId} onChange={(e) => setProfessionalId(e.target.value)}>
-              {professionals.map((p) => (
+              {profissionaisDisponiveis.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.user.name}
                 </option>

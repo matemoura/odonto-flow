@@ -26,9 +26,21 @@ export class PatientsController {
     @CurrentTenant() clinicId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Query("search") search?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string,
   ) {
     const escopo = await this.patients.escopoDoProfissional(user, clinicId);
-    return this.patients.findAll(clinicId, search, escopo);
+    return this.patients.findAll(clinicId, search, escopo, {
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  /** Rota declarada ANTES de `:id`, senão o Nest casa "opcoes" como um id. */
+  @Get("opcoes")
+  async listarParaSelecao(@CurrentTenant() clinicId: string, @CurrentUser() user: AuthenticatedUser) {
+    const escopo = await this.patients.escopoDoProfissional(user, clinicId);
+    return this.patients.listarParaSelecao(clinicId, escopo);
   }
 
   @Get(":id")

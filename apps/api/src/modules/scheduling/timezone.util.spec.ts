@@ -1,4 +1,10 @@
-import { formatZonedIsoDate, formatZonedTime, getZonedParts, zonedDateTimeToUtc } from "./timezone.util";
+import {
+  formatZonedIsoDate,
+  formatZonedTime,
+  getZonedParts,
+  zonedDateOnlyToUtc,
+  zonedDateTimeToUtc,
+} from "./timezone.util";
 
 describe("timezone.util", () => {
   it("converte um horário de parede em America/Sao_Paulo (UTC-3, sem DST) para o instante UTC certo", () => {
@@ -23,5 +29,37 @@ describe("timezone.util", () => {
     expect(formatZonedIsoDate(utc, "America/Sao_Paulo")).toBe("2026-09-09");
     expect(formatZonedTime(utc, "America/Sao_Paulo")).toBe("23:00");
     expect(formatZonedIsoDate(utc, "UTC")).toBe("2026-09-10");
+  });
+});
+
+describe("zonedDateOnlyToUtc", () => {
+  // O bug que isto conserta: `new Date("2026-09-18")` é meia-noite UTC, que em
+  // São Paulo é 21h do dia 17. A data voltava para a tela um dia atrás — o
+  // dentista digitava 18 e lia 17.
+  it("lê uma data sem hora como meia-noite NA CLÍNICA", () => {
+    expect(zonedDateOnlyToUtc("2026-09-18", "America/Sao_Paulo").toISOString()).toBe(
+      "2026-09-18T03:00:00.000Z",
+    );
+    expect(zonedDateOnlyToUtc("2026-09-18", "UTC").toISOString()).toBe("2026-09-18T00:00:00.000Z");
+    expect(zonedDateOnlyToUtc("2026-09-18", "Asia/Tokyo").toISOString()).toBe(
+      "2026-09-17T15:00:00.000Z",
+    );
+  });
+
+  it("o dia de volta é o mesmo que foi digitado, em qualquer fuso", () => {
+    for (const fuso of ["America/Sao_Paulo", "UTC", "Asia/Tokyo", "Pacific/Kiritimati"]) {
+      expect(formatZonedIsoDate(zonedDateOnlyToUtc("2026-09-18", fuso), fuso)).toBe("2026-09-18");
+    }
+  });
+
+  // `@IsDateString` aceita os dois formatos; quando o instante já vem
+  // completo, o fuso está na própria string e não há o que adivinhar.
+  it("respeita um instante completo em vez de reinterpretá-lo", () => {
+    expect(zonedDateOnlyToUtc("2026-09-18T14:30:00.000Z", "America/Sao_Paulo").toISOString()).toBe(
+      "2026-09-18T14:30:00.000Z",
+    );
+    expect(zonedDateOnlyToUtc("2026-09-18T14:30:00-03:00", "UTC").toISOString()).toBe(
+      "2026-09-18T17:30:00.000Z",
+    );
   });
 });

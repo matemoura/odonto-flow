@@ -173,24 +173,33 @@ model OrganizationMembership {
 
 /// Uma unidade/clínica = o tenant. Todo dado operacional referencia clinicId.
 model Clinic {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
-  name      String
-  slug      String   @unique
-  timezone  String   @default("America/Sao_Paulo")
+  name     String
+  slug     String  @unique
+  timezone String  @default("America/Sao_Paulo")
   /// Plano escolhido no auto-cadastro (ex.: "basic"/"plus"/"pro") — só
   /// informativo por enquanto, não há cobrança nem bloqueio de recurso por
   /// plano ainda. Nulo pra clínicas criadas antes disso existir (seed, etc.).
-  plan      String?
+  plan     String?
+
+  /// Número de WhatsApp da própria clínica, em E.164 (+5511987654321) — é o
+  /// REMETENTE das mensagens, não o do paciente. Quem preenche é o dono da
+  /// clínica, na tela de Integrações; o dono da plataforma não tem por que
+  /// saber o número de cada cliente.
+  ///
+  /// Nulo = a clínica ainda não configurou, e o gateway recusa o envio em vez
+  /// de mandar de um número que não é dela.
+  whatsappPhone String?
 
   /// Último pagamento confirmado (registrado manualmente pelo dono da
   /// plataforma até um gateway de pagamento de verdade ser plugado — ver
   /// PlatformAdminService.registerPayment). Nulo = nunca pagou; nesse caso a
   /// contagem de inadimplência começa em `createdAt` (funciona como período
   /// de teste implícito).
-  lastPaymentAt DateTime?
+  lastPaymentAt           DateTime?
   /// Suspensão manual pelo dono da plataforma — independente de inadimplência
   /// (ex.: fraude, pedido da própria clínica). Nulo = não suspensa manualmente.
   manuallySuspendedAt     DateTime?
@@ -218,9 +227,9 @@ model Clinic {
   /// São duas janelas porque o almoço fecha o consultório. Clínica que não para
   /// para almoçar põe as duas coladas (manhã 08:00–12:00, tarde 12:00–18:00).
   /// Os padrões são exatamente a regra fixa que existia antes.
-  morningStartMinutes   Int @default(480)  // 08:00
-  morningEndMinutes     Int @default(720)  // 12:00
-  afternoonStartMinutes Int @default(780)  // 13:00
+  morningStartMinutes   Int @default(480) // 08:00
+  morningEndMinutes     Int @default(720) // 12:00
+  afternoonStartMinutes Int @default(780) // 13:00
   afternoonEndMinutes   Int @default(1080) // 18:00
 
   /// Duração de cada encaixe da agenda.
@@ -229,33 +238,34 @@ model Clinic {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships       ClinicMembership[]
-  professionals     Professional[]
-  patients          Patient[]
-  appointments      Appointment[]
-  auditLogs         AuditLog[]
-  procedures        Procedure[]
-  inventoryItems     InventoryItem[]
-  inventoryMovements InventoryMovement[]
-  budgets           Budget[]
-  clinicalRecords   ClinicalRecord[]
-  odontogramEntries Odontogram[]
-  periodontalEntries PeriodontalEntry[]
-  anamnesisForms    Anamnesis[]
-  treatmentPlanOptions TreatmentPlanOption[]
-  documents         Document[]
-  transactions      Transaction[]
-  commissionRules   CommissionRule[]
-  commissionEntries CommissionEntry[]
-  crmOpportunities  CRMOpportunity[]
-  referrals         Referral[]
-  integrationConfigs IntegrationConfig[]
-  contracts         Contract[]
-  certificates      Certificate[]
-  invoices          Invoice[]
-  creditScoreQueries CreditScoreQuery[]
+  memberships           ClinicMembership[]
+  professionals         Professional[]
+  patients              Patient[]
+  appointments          Appointment[]
+  auditLogs             AuditLog[]
+  procedures            Procedure[]
+  inventoryItems        InventoryItem[]
+  inventoryMovements    InventoryMovement[]
+  budgets               Budget[]
+  clinicalRecords       ClinicalRecord[]
+  odontogramEntries     Odontogram[]
+  periodontalEntries    PeriodontalEntry[]
+  anamnesisForms        Anamnesis[]
+  treatmentPlanOptions  TreatmentPlanOption[]
+  documents             Document[]
+  transactions          Transaction[]
+  commissionRules       CommissionRule[]
+  commissionEntries     CommissionEntry[]
+  crmOpportunities      CRMOpportunity[]
+  referrals             Referral[]
+  integrationConfigs    IntegrationConfig[]
+  contracts             Contract[]
+  certificates          Certificate[]
+  invoices              Invoice[]
+  creditScoreQueries    CreditScoreQuery[]
   orthodonticTreatments OrthodonticTreatment[]
-  facialPlannings   FacialPlanning[]
+  facialPlannings       FacialPlanning[]
+  prescriptions         Prescription[]
 
   @@index([organizationId])
   @@map("clinics")
@@ -314,16 +324,17 @@ model Professional {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  appointments      Appointment[]
-  budgets           Budget[]
-  clinicalRecords   ClinicalRecord[]
-  transactions      Transaction[]
-  commissionRule    CommissionRule?
-  commissionEntries CommissionEntry[]
-  ownedOpportunities CRMOpportunity[]
+  appointments          Appointment[]
+  budgets               Budget[]
+  clinicalRecords       ClinicalRecord[]
+  transactions          Transaction[]
+  commissionRule        CommissionRule?
+  commissionEntries     CommissionEntry[]
+  ownedOpportunities    CRMOpportunity[]
   orthodonticTreatments OrthodonticTreatment[]
-  treatmentPlanOptions TreatmentPlanOption[]
-  certificates      Certificate[]
+  treatmentPlanOptions  TreatmentPlanOption[]
+  certificates          Certificate[]
+  prescriptions         Prescription[]
 
   @@index([clinicId])
   @@map("professionals")
@@ -331,18 +342,18 @@ model Professional {
 
 /// Paciente da clínica. Pode ou não ter User associado (portal do paciente).
 model Patient {
-  id              String    @id @default(cuid())
-  clinicId        String
-  clinic          Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  userId          String?   @unique
-  user            User?     @relation(fields: [userId], references: [id])
-  name            String
-  cpf             String?
-  rg              String?
-  birthDate       DateTime?
-  phone           String?
-  email           String?
-  consentLGPDAt   DateTime?
+  id            String    @id @default(cuid())
+  clinicId      String
+  clinic        Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  userId        String?   @unique
+  user          User?     @relation(fields: [userId], references: [id])
+  name          String
+  cpf           String?
+  rg            String?
+  birthDate     DateTime?
+  phone         String?
+  email         String?
+  consentLGPDAt DateTime?
 
   /// Endereço — parte do "completar dados do paciente" da ficha de anamnese.
   addressStreet       String?
@@ -360,22 +371,24 @@ model Patient {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  appointments      Appointment[]
-  budgets           Budget[]
-  clinicalRecords   ClinicalRecord[]
-  odontogramEntries Odontogram[]
-  periodontalEntries PeriodontalEntry[]
-  anamnesis         Anamnesis?
-  treatmentPlanOptions TreatmentPlanOption[]
-  documents         Document[]
-  opportunities     CRMOpportunity[]
-  referralsMade     Referral[]       @relation("ReferralsMade")
-  referralsReceived Referral[]       @relation("ReferralsReceived")
-  contracts         Contract[]
-  certificates      Certificate[]
-  creditScoreQueries CreditScoreQuery[]
+  appointments          Appointment[]
+  budgets               Budget[]
+  clinicalRecords       ClinicalRecord[]
+  odontogramEntries     Odontogram[]
+  periodontalEntries    PeriodontalEntry[]
+  anamnesis             Anamnesis?
+  treatmentPlanOptions  TreatmentPlanOption[]
+  documents             Document[]
+  transactions          Transaction[]
+  opportunities         CRMOpportunity[]
+  referralsMade         Referral[]             @relation("ReferralsMade")
+  referralsReceived     Referral[]             @relation("ReferralsReceived")
+  contracts             Contract[]
+  certificates          Certificate[]
+  creditScoreQueries    CreditScoreQuery[]
   orthodonticTreatments OrthodonticTreatment[]
-  facialPlannings   FacialPlanning[]
+  facialPlannings       FacialPlanning[]
+  prescriptions         Prescription[]
 
   @@index([clinicId])
   @@map("patients")
@@ -400,6 +413,7 @@ model Appointment {
   updatedAt DateTime @updatedAt
 
   clinicalRecords ClinicalRecord[]
+  prescriptions   Prescription[]
 
   @@index([clinicId, startAt])
   @@index([professionalId, startAt])
@@ -421,8 +435,10 @@ model Procedure {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  budgetItems BudgetItem[]
-  materials   ProcedureMaterial[]
+  budgetItems       BudgetItem[]
+  materials         ProcedureMaterial[]
+  prescriptionItems ProcedurePrescriptionItem[]
+  prescriptions     Prescription[]
 
   @@index([clinicId])
   @@map("procedures")
@@ -452,15 +468,15 @@ model ProcedureMaterial {
 /// finalizados (ver BudgetItem.materialsReservedAt/executedAt) — a
 /// quantidade "livre" pra novos usos é quantityOnHand - quantityReserved.
 model InventoryItem {
-  id               String   @id @default(cuid())
+  id               String @id @default(cuid())
   clinicId         String
-  clinic           Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic           Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   name             String
   unit             String
-  unitCostCents    Int      @default(0)
-  quantityOnHand   Int      @default(0)
-  quantityReserved Int      @default(0)
-  minQuantity      Int      @default(0)
+  unitCostCents    Int    @default(0)
+  quantityOnHand   Int    @default(0)
+  quantityReserved Int    @default(0)
+  minQuantity      Int    @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -522,20 +538,21 @@ model Budget {
   items         BudgetItem[]
   opportunities CRMOpportunity[]
   contracts     Contract[]
+  transactions  Transaction[]
 
   @@index([clinicId, patientId])
   @@map("budgets")
 }
 
 model BudgetItem {
-  id             String    @id @default(cuid())
-  budgetId       String
-  budget         Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  procedureId    String
-  procedure      Procedure @relation(fields: [procedureId], references: [id])
-  toothNumber    String?
-  quantity       Int       @default(1)
-  unitPriceCents Int
+  id                  String    @id @default(cuid())
+  budgetId            String
+  budget              Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  procedureId         String
+  procedure           Procedure @relation(fields: [procedureId], references: [id])
+  toothNumber         String?
+  quantity            Int       @default(1)
+  unitPriceCents      Int
   /// Setado quando o orçamento vira APPROVED — materiais reservados no estoque.
   /// Volta a null se o orçamento sair de APPROVED antes de ser finalizado (reserva liberada).
   materialsReservedAt DateTime?
@@ -559,6 +576,13 @@ model ClinicalRecord {
   appointment    Appointment?       @relation(fields: [appointmentId], references: [id])
   type           ClinicalRecordType
   content        String
+
+  /// PNG em data URL, desenhado na tela na hora de concluir o atendimento.
+  /// Ambas nulas quando o registro vem do formulário livre de evolução (sem assinatura).
+  professionalSignature String?
+  professionalSignedAt  DateTime?
+  patientSignature      String?
+  patientSignedAt       DateTime?
 
   createdAt DateTime @default(now())
 
@@ -605,12 +629,12 @@ model PeriodontalEntry {
   probingDepthLingualCentral Int?
   probingDepthLingualDistal  Int?
   /// Grau de mobilidade dentária (0-3, classificação de Miller).
-  mobility  Int?
+  mobility                   Int?
   /// Retração gengival em mm.
-  recession Int?
-  bleeding  Boolean @default(false)
-  notes     String?
-  updatedBy String?
+  recession                  Int?
+  bleeding                   Boolean @default(false)
+  notes                      String?
+  updatedBy                  String?
 
   updatedAt DateTime @default(now())
 
@@ -635,17 +659,21 @@ model Anamnesis {
   expectedOutcome String?
 
   // Dados de saúde (histórico médico relevante pra odontologia)
-  hasHypertension     Boolean @default(false)
-  hasDiabetes         Boolean @default(false)
-  hasHeartCondition   Boolean @default(false)
-  hasBleedingDisorder Boolean @default(false)
-  isPregnant          Boolean @default(false)
-  isSmoker            Boolean @default(false)
-  hasAllergies        Boolean @default(false)
-  allergyDetails      String?
-  currentMedications  String?
-  previousSurgeries   String?
-  otherHealthNotes    String?
+  hasHypertension              Boolean @default(false)
+  hasDiabetes                  Boolean @default(false)
+  hasHeartCondition            Boolean @default(false)
+  hasBleedingDisorder          Boolean @default(false)
+  isPregnant                   Boolean @default(false)
+  isSmoker                     Boolean @default(false)
+  /// Insuficiência renal crônica — relevante pra dose/escolha de antibiótico e AINE.
+  hasChronicKidneyDisease      Boolean @default(false)
+  /// Câncer em tratamento (quimio/radioterapia) ou outra causa de imunossupressão.
+  hasCancerOrImmunosuppression Boolean @default(false)
+  hasAllergies                 Boolean @default(false)
+  allergyDetails               String?
+  currentMedications           String?
+  previousSurgeries            String?
+  otherHealthNotes             String?
 
   // Higiene bucal
   brushingFrequencyPerDay Int?
@@ -717,30 +745,44 @@ model Document {
 
 /// Lançamento financeiro (fluxo de caixa) — receita ou despesa da clínica.
 model Transaction {
-  id             String          @id @default(cuid())
-  clinicId       String
-  clinic         Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  type           TransactionType
-  category       String
-  description    String?
-  amountCents    Int
-  dueDate        DateTime
-  paidAt         DateTime?
+  id                String          @id @default(cuid())
+  clinicId          String
+  clinic            Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  type              TransactionType
+  category          String
+  description       String?
+  amountCents       Int
+  dueDate           DateTime
+  paidAt            DateTime?
   /// Só existe junto com `paidAt` — nulo enquanto pendente (e nos lançamentos
   /// quitados antes deste campo existir).
-  paymentMethod  PaymentMethod?
+  paymentMethod     PaymentMethod?
   /// Taxa retida pela operadora, congelada no momento do recebimento — a
   /// clínica pode renegociar a taxa depois e o histórico não pode mudar.
-  feeCents       Int            @default(0)
+  feeCents          Int             @default(0)
   /// Quando o dinheiro de fato cai na conta. Igual a `paidAt` em PIX/dinheiro;
   /// em cartão, `paidAt` + o prazo configurado pela clínica.
-  settledAt      DateTime?
+  settledAt         DateTime?
   /// Parcelamento: um valor único dividido em N lançamentos. 3 e 10 = "3/10".
   /// Nulos em lançamento à vista.
   installmentNumber Int?
   installmentTotal  Int?
-  professionalId String?
-  professional   Professional?   @relation(fields: [professionalId], references: [id])
+  professionalId    String?
+  professional      Professional?   @relation(fields: [professionalId], references: [id])
+
+  /// De quem é este lançamento. Nulo em despesa da clínica (aluguel, material)
+  /// e em receita sem paciente identificado.
+  ///
+  /// Sem isto não havia como ligar dinheiro a pessoa: a emissão de NFS-e saía
+  /// com CPF fixo `00000000000` porque o dado simplesmente não existia no
+  /// lançamento.
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id])
+
+  /// Orçamento que originou este lançamento. É o que impede gerar as parcelas
+  /// duas vezes quando um orçamento é reaprovado.
+  budgetId String?
+  budget   Budget? @relation(fields: [budgetId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -749,16 +791,17 @@ model Transaction {
   invoice         Invoice?
 
   @@index([clinicId, dueDate])
+  @@index([budgetId])
   @@map("transactions")
 }
 
 /// Percentual de comissão de um profissional — usado para gerar CommissionEntry
 /// automaticamente quando uma Transaction de receita ligada a ele é paga.
 model CommissionRule {
-  id                    String  @id @default(cuid())
+  id                    String       @id @default(cuid())
   clinicId              String
-  clinic                Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  professionalId        String  @unique
+  clinic                Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  professionalId        String       @unique
   professional          Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
   /// percentual em pontos-base (3000 = 30,00%), para evitar ponto flutuante
   percentageBasisPoints Int
@@ -772,13 +815,13 @@ model CommissionRule {
 
 /// Comissão calculada automaticamente ao marcar uma Transaction como paga.
 model CommissionEntry {
-  id             String      @id @default(cuid())
+  id             String       @id @default(cuid())
   clinicId       String
-  clinic         Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic         Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   professionalId String
   professional   Professional @relation(fields: [professionalId], references: [id])
-  transactionId  String      @unique
-  transaction    Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId  String       @unique
+  transaction    Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   amountCents    Int
 
   createdAt DateTime @default(now())
@@ -790,18 +833,18 @@ model CommissionEntry {
 /// Oportunidade do funil de vendas — paciente em conversa (kanban) ou orçamento
 /// pendente sendo acompanhado ("funil de orçamentos não aprovados").
 model CRMOpportunity {
-  id             String           @id @default(cuid())
-  clinicId       String
-  clinic         Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  patientId      String
-  patient        Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  budgetId       String?
-  budget         Budget?          @relation(fields: [budgetId], references: [id])
-  ownerId        String?
-  owner          Professional?    @relation(fields: [ownerId], references: [id])
-  stage          OpportunityStage @default(NEW)
-  title          String
-  notes          String?
+  id        String           @id @default(cuid())
+  clinicId  String
+  clinic    Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  budgetId  String?
+  budget    Budget?          @relation(fields: [budgetId], references: [id])
+  ownerId   String?
+  owner     Professional?    @relation(fields: [ownerId], references: [id])
+  stage     OpportunityStage @default(NEW)
+  title     String
+  notes     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -834,13 +877,24 @@ model Referral {
 /// Provedor escolhido pela clínica para cada tipo de integração — "mock"
 /// (padrão, grátis) ou o nome de um provedor real, quando plugado. Ver
 /// packages/integrations/* e o plano, seção "Padrão de adapter".
+/// Liberação de uma integração para uma clínica. **Esta tabela é do dono da
+/// plataforma, não da clínica**: é ele quem contrata (e paga) o provedor real,
+/// então é ele quem decide qual clínica tem qual integração. A clínica só
+/// preenche o que é dela — o número de WhatsApp, por exemplo, mora em
+/// `Clinic.whatsappPhone`.
+///
+/// Linha inexistente = integração NÃO liberada. Antes o código tratava a
+/// ausência como "liberada em modo mock"; virou o contrário justamente para
+/// que uma clínica nova não apareça com tudo ligado sem ninguém ter decidido.
 model IntegrationConfig {
   id           String          @id @default(cuid())
   clinicId     String
   clinic       Clinic          @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   kind         IntegrationKind
   providerName String          @default("mock")
-  enabled      Boolean         @default(true)
+  /// Liberada para uso. Desligar aqui esconde a integração da clínica e faz o
+  /// gateway recusar a chamada — não é só enfeite de tela.
+  enabled      Boolean         @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -890,13 +944,13 @@ enum CertificateBeneficiary {
 /// imutável depois (igual ao Contract), pra o atestado impresso continuar
 /// batendo com o que fica registrado mesmo se os dados do paciente mudarem depois.
 model Certificate {
-  id             String                 @id @default(cuid())
+  id             String       @id @default(cuid())
   clinicId       String
-  clinic         Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic         Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   patientId      String
-  patient        Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient        Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   professionalId String
-  professional   Professional           @relation(fields: [professionalId], references: [id])
+  professional   Professional @relation(fields: [professionalId], references: [id])
 
   type          CertificateType
   beneficiary   CertificateBeneficiary @default(PATIENT)
@@ -1039,6 +1093,141 @@ model AuditLog {
 
   @@index([clinicId, entityType, entityId])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Receitas — catálogo de medicamentos (global, não por clínica: é referência
+// farmacológica, igual para todo mundo) + receita padrão por serviço + receita
+// emitida para o paciente. Baseado em Andrade ED (org.). Terapêutica
+// Medicamentosa em Odontologia. 3.ed. Artes Médicas, 2014.
+// ---------------------------------------------------------------------------
+
+enum MedicationClass {
+  ANALGESIC
+  NSAID
+  CORTICOSTEROID
+  ANTIBIOTIC
+  ANTISEPTIC
+}
+
+/// As mesmas categorias já existentes em `Anamnesis` (mais as duas novas,
+/// renal crônico e oncológico/imunossuprimido) — é contra elas que uma
+/// receita cruza os medicamentos escolhidos na hora de emitir.
+enum RiskFlag {
+  HYPERTENSION
+  DIABETES
+  HEART_CONDITION
+  BLEEDING_DISORDER
+  PREGNANT
+  CHRONIC_KIDNEY_DISEASE
+  CANCER_OR_IMMUNOSUPPRESSION
+}
+
+enum RiskSeverity {
+  CAUTION
+  AVOID
+}
+
+/// Catálogo de medicamentos — referência farmacológica compartilhada por
+/// todas as clínicas (não tem `clinicId` de propósito). `defaultPosology` é
+/// o texto sugerido; cada `ProcedurePrescriptionItem`/`PrescriptionItem` pode
+/// personalizar por clínica ou por receita sem alterar o catálogo.
+model Medication {
+  id              String          @id @default(cuid())
+  name            String
+  class           MedicationClass
+  defaultPosology String
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  riskNotes      MedicationRiskNote[]
+  procedureItems ProcedurePrescriptionItem[]
+
+  @@map("medications")
+}
+
+/// Aviso de risco de um medicamento para uma condição do paciente — é o que
+/// vira o banner de alerta na hora de emitir a receita, cruzado com as flags
+/// já marcadas na Anamnese do paciente.
+model MedicationRiskNote {
+  id           String       @id @default(cuid())
+  medicationId String
+  medication   Medication   @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  riskFlag     RiskFlag
+  severity     RiskSeverity
+  note         String
+
+  @@unique([medicationId, riskFlag])
+  @@map("medication_risk_notes")
+}
+
+/// Item de uma receita PADRÃO de um serviço (por clínica) — o que já vem
+/// pré-pronto quando o dentista escolhe aquele serviço na hora de emitir uma
+/// receita de verdade. Mesmo padrão do `ProcedureMaterial` pro estoque:
+/// vinculado ao `Procedure` da própria clínica, editável por ela.
+model ProcedurePrescriptionItem {
+  id           String      @id @default(cuid())
+  procedureId  String
+  procedure    Procedure   @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  medicationId String?
+  medication   Medication? @relation(fields: [medicationId], references: [id])
+  /// Nome livre, usado quando o item não vem do catálogo (`medicationId` nulo).
+  customName   String?
+  posology     String
+  instructions String?
+  order        Int         @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([procedureId])
+  @@map("procedure_prescription_items")
+}
+
+/// Receita emitida de verdade para um paciente — imutável depois de criada
+/// (mesmo princípio do `ClinicalRecord`: prontuário não se edita, corrige-se
+/// com um registro novo). `content` é o texto final impresso, já congelado.
+model Prescription {
+  id                String       @id @default(cuid())
+  clinicId          String
+  clinic            Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patientId         String
+  patient           Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId    String
+  professional      Professional @relation(fields: [professionalId], references: [id])
+  appointmentId     String?
+  appointment       Appointment? @relation(fields: [appointmentId], references: [id])
+  procedureId       String?
+  procedure         Procedure?   @relation(fields: [procedureId], references: [id])
+  notes             String?
+  /// Snapshot dos avisos de risco mostrados ao profissional no momento da
+  /// emissão (texto simples) — auditoria de que o alerta apareceu, mesmo que
+  /// a Anamnese do paciente mude depois.
+  riskWarningsShown String?
+  content           String
+
+  createdAt DateTime @default(now())
+
+  items PrescriptionItem[]
+
+  @@index([clinicId, patientId])
+  @@map("prescriptions")
+}
+
+/// Um medicamento dentro de uma receita emitida — congelado no texto (nome,
+/// posologia, instruções), independente do catálogo mudar depois.
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicationName String
+  posology       String
+  instructions   String?
+  order          Int          @default(0)
+
+  @@map("prescription_items")
 }
 
 /// Configuração global da plataforma (não por clínica) — linha única

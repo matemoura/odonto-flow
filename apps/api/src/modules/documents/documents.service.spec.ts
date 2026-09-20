@@ -7,6 +7,8 @@ import { UPLOADS_ROOT } from "./uploads.config";
 function fakePrisma(overrides: Record<string, unknown> = {}) {
   return {
     document: { findMany: jest.fn(), create: jest.fn(), findFirst: jest.fn() },
+    // Por padrão o paciente é desta clínica; o teste de isolamento sobrescreve.
+    patient: { findFirst: jest.fn().mockResolvedValue({ id: "patient-1" }) },
     ...overrides,
   } as unknown as PrismaService;
 }
@@ -62,5 +64,23 @@ describe("DocumentsService.getFileForDownload", () => {
     const { path } = await service.getFileForDownload("clinic-1", "doc-1");
 
     expect(path).toBe(join(UPLOADS_ROOT, "clinic-1", "uuid-foto.png"));
+  });
+});
+
+describe("DocumentsService.create — isolamento entre clínicas", () => {
+  it("não registra documento para paciente de outra clínica", async () => {
+    const prisma = fakePrisma({ patient: { findFirst: jest.fn().mockResolvedValue(null) } });
+    const service = new DocumentsService(prisma);
+
+    await expect(
+      service.create("clinic-1", "paciente-da-clinica-b", "RADIOGRAPHY", {
+        filename: "uuid.png",
+        originalname: "radiografia.png",
+        mimetype: "image/png",
+        size: 1234,
+      } as Express.Multer.File),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prisma.document.create).not.toHaveBeenCalled();
   });
 });

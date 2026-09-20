@@ -35,7 +35,10 @@ export class BudgetsController {
     @Param("id") id: string,
     @Body() dto: UpdateBudgetStatusDto,
   ) {
-    return this.budgets.updateStatus(clinicId, id, dto.status);
+    return this.budgets.updateStatus(clinicId, id, dto.status, {
+      installments: dto.installments,
+      firstDueDate: dto.firstDueDate,
+    });
   }
 
   @Patch(":id/items/:itemId/execute")

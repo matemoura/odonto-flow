@@ -17,7 +17,7 @@ front, orquestrado com **pnpm workspaces + Turborepo**.
 - Prontuário eletrônico append-only, odontograma com histórico por dente e ficha de anamnese.
 - Ortodontia: tratamento com cronograma de etapas e acompanhamento de trocas.
 - Faceograma: planejamento estético sobre foto, versionado.
-- Atestados e documentos do paciente, com página pública de verificação.
+- Atestados de comparecimento e médicos, impressos com espaço para assinatura e carimbo.
 
 **Gestão e vendas**
 - Orçamentos a partir de um catálogo de serviços, com aprovação e geração de contrato.
@@ -76,7 +76,8 @@ odonto-flow/
 │   ├── integrations/         # adapters plugáveis (ver abaixo)
 │   └── config/               # eslint, tsconfig e jest compartilhados
 ├── infra/docker-compose.yml  # PostgreSQL + Redis locais
-├── render.yaml               # blueprint de deploy da API no Render
+├── railway.api.toml          # config de deploy da API no Railway
+├── railway.web.toml          # config de deploy do web no Railway
 └── .github/workflows/ci.yml  # lint, typecheck, test e build
 ```
 
@@ -122,13 +123,17 @@ pnpm dev
 
 ### Contas de demonstração
 
-Criadas pelo `pnpm db:seed`. Senha de todas: `senha123`.
+O `pnpm db:seed` cria a clínica "Vila Nova" com contas de desenvolvimento em três
+papéis (administrador da clínica, dentista e dono da plataforma). Os e-mails e a
+senha ficam no próprio `packages/db/prisma/seed.ts`, que é onde eles importam —
+não aqui, porque este arquivo é público e a mesma senha vale para as três contas,
+inclusive a de dono da plataforma.
 
-| Entrar em | Conta | Papel |
-|---|---|---|
-| `/entrar/vila-nova` | `admin@vilanova.com` | `ORG_ADMIN` (administra e também atende) |
-| `/entrar/vila-nova` | `ana.prado@vilanova.com` | `DENTIST` |
-| `/plataforma/entrar` | `dono@odontoflow.dev` | `SUPER_ADMIN` |
+**O seed é só para desenvolvimento.** Em produção, use:
+
+```bash
+SUPER_ADMIN_EMAIL=voce@exemplo.com SUPER_ADMIN_PASSWORD='...' pnpm db:create-super-admin
+```
 
 O link público de agendamento da clínica demo é `/agendar/vila-nova`.
 
@@ -145,7 +150,8 @@ O link público de agendamento da clínica demo é `/agendar/vila-nova`.
 | `pnpm test` | Suíte de testes (unit + e2e da API). |
 | `pnpm db:generate` | Gera o Prisma Client. |
 | `pnpm db:migrate` | Aplica migrations em desenvolvimento. |
-| `pnpm db:seed` | Popula a clínica de demonstração. |
+| `pnpm db:seed` | Popula a clínica de demonstração (**só em desenvolvimento**). |
+| `pnpm db:create-super-admin` | Cria ou promove o dono da plataforma num banco existente. |
 
 ---
 

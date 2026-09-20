@@ -3,7 +3,7 @@ import {
   ApiError,
   getCurrentOrganization,
   getOrganizationDashboard,
-  getPatients,
+  getPatientOptions,
   getSchedulingSettings,
 } from "../../../lib/api";
 import { getStaffSession } from "../../../lib/session";
@@ -81,7 +81,9 @@ export default async function OrganizacoesPage() {
   const dashboard = isOrgAdmin
     ? await getOrganizationDashboard(session.clinicSlug, session.token).catch(() => null)
     : null;
-  const patients = isOrgAdmin ? await getPatients(session.clinicSlug, session.token).catch(() => []) : [];
+  const patients = isOrgAdmin
+    ? await getPatientOptions(session.clinicSlug, session.token).catch(() => ({ itens: [], truncado: false }))
+    : { itens: [], truncado: false };
   const currentClinic = organization.clinics.find((c) => c.slug === session.clinicSlug);
   const siblingClinics = organization.clinics.filter((c) => c.slug !== session.clinicSlug);
 
@@ -151,7 +153,7 @@ export default async function OrganizacoesPage() {
           ) : null}
 
           <hr style={{ border: 0, borderTop: "1px solid var(--linha)", margin: "8px 0" }} />
-          <TransferPatientForm patients={patients} clinics={siblingClinics} />
+          <TransferPatientForm patients={patients.itens} clinics={siblingClinics} />
 
           <hr style={{ border: 0, borderTop: "1px solid var(--linha)", margin: "8px 0" }} />
           <SyncProceduresButton clinics={organization.clinics} currentClinicId={currentClinic?.id ?? ""} />

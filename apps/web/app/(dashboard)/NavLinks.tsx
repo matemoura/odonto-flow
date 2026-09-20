@@ -65,7 +65,7 @@ export function NavLinks({
       label: "Configurações",
       itens: [
         ...(isAdmin ? [{ href: "/financeiro/cartao", label: "Taxa e prazo do cartão" }] : []),
-        { href: "/integracoes", label: "Integrações" },
+        ...(isAdmin ? [{ href: "/integracoes", label: "Integrações" }] : []),
         ...(showOrganizacoes ? [{ href: "/organizacoes", label: "Organização" }] : []),
       ],
     },

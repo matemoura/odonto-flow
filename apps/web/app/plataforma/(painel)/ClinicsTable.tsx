@@ -3,11 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlatformClinic } from "../../../lib/api";
+import { FUSO_DA_PLATAFORMA, formatarData } from "../../../lib/datas";
 import s from "./painel.module.css";
 
-function formatarData(iso: string | null) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("pt-BR");
+/**
+ * Esta tabela mistura clínicas de fusos diferentes, então não existe "a"
+ * clínica para usar: mostrar cada linha no fuso dela tornaria a coluna
+ * incomparável. Fica no fuso da própria plataforma.
+ */
+function formatarDataDaPlataforma(iso: string | null) {
+  return formatarData(iso, FUSO_DA_PLATAFORMA);
 }
 
 function Selo({ clinic }: { clinic: PlatformClinic }) {
@@ -122,7 +127,7 @@ export function ClinicsTable({ clinics }: { clinics: PlatformClinic[] }) {
                   <td>
                     <Selo clinic={clinic} />
                   </td>
-                  <td>{formatarData(clinic.lastPaymentAt)}</td>
+                  <td>{formatarDataDaPlataforma(clinic.lastPaymentAt)}</td>
                   <td>{clinic._count.patients}</td>
                   <td>{clinic._count.memberships}</td>
                   <td>

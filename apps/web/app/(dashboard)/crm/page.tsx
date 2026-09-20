@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getOpportunities, getPatients, getPendingBudgets, getStaffProfessionals } from "../../../lib/api";
+import { getOpportunities, getPatientOptions, getPendingBudgets, getStaffProfessionals } from "../../../lib/api";
 import { getStaffSession } from "../../../lib/session";
 import { NovaOportunidadeForm } from "./NovaOportunidadeForm";
 import { StageSelect } from "./StageSelect";
@@ -26,7 +26,7 @@ export default async function CrmPage() {
     [opportunities, pendingBudgets, patients, professionals] = await Promise.all([
       getOpportunities(session.clinicSlug, session.token),
       getPendingBudgets(session.clinicSlug, session.token),
-      getPatients(session.clinicSlug, session.token),
+      getPatientOptions(session.clinicSlug, session.token),
       getStaffProfessionals(session.clinicSlug, session.token),
     ]);
   } catch {
@@ -58,7 +58,7 @@ export default async function CrmPage() {
         </div>
       ) : null}
 
-      <NovaOportunidadeForm patients={patients} professionals={professionals} />
+      <NovaOportunidadeForm patients={patients.itens} professionals={professionals} />
 
       <div className={c.kanban}>
         {STAGES.map((stage) => {

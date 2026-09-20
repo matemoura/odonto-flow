@@ -4,8 +4,13 @@ import { CreateProcedureDto } from "./dto/create-procedure.dto";
 import { UpdateProcedureDto } from "./dto/update-procedure.dto";
 import { CreateProcedureMaterialDto } from "./dto/create-procedure-material.dto";
 import { UpdateProcedureMaterialDto } from "./dto/update-procedure-material.dto";
+import { CreateProcedurePrescriptionItemDto } from "./dto/create-procedure-prescription-item.dto";
+import { UpdateProcedurePrescriptionItemDto } from "./dto/update-procedure-prescription-item.dto";
 
-const MATERIALS_INCLUDE = { materials: { include: { inventoryItem: true } } } as const;
+const MATERIALS_INCLUDE = {
+  materials: { include: { inventoryItem: true } },
+  prescriptionItems: { include: { medication: true }, orderBy: { order: "asc" as const } },
+} as const;
 
 type ProcedureWithMaterials = {
   materials: { quantityUsed: number; inventoryItem: { unitCostCents: number } }[];
@@ -91,6 +96,59 @@ export class ProceduresService {
   async removeMaterial(clinicId: string, procedureId: string, materialId: string) {
     await this.assertMaterialExists(clinicId, procedureId, materialId);
     await this.prisma.procedureMaterial.delete({ where: { id: materialId } });
+  }
+
+  async addPrescriptionItem(clinicId: string, procedureId: string, dto: CreateProcedurePrescriptionItemDto) {
+    await this.assertExists(clinicId, procedureId);
+    let medicationName: string | undefined;
+    if (dto.medicationId) {
+      const medication = await this.prisma.medication.findUnique({ where: { id: dto.medicationId } });
+      if (!medication) {
+        throw new NotFoundException("Medicamento não encontrado no catálogo.");
+      }
+      medicationName = medication.name;
+    }
+    const existing = await this.prisma.procedurePrescriptionItem.count({ where: { procedureId } });
+    return this.prisma.procedurePrescriptionItem.create({
+      data: {
+        procedureId,
+        medicationId: dto.medicationId,
+        customName: dto.medicationId ? undefined : (dto.customName ?? medicationName),
+        posology: dto.posology,
+        instructions: dto.instructions,
+        order: dto.order ?? existing,
+      },
+      include: { medication: true },
+    });
+  }
+
+  async updatePrescriptionItem(
+    clinicId: string,
+    procedureId: string,
+    itemId: string,
+    dto: UpdateProcedurePrescriptionItemDto,
+  ) {
+    await this.assertPrescriptionItemExists(clinicId, procedureId, itemId);
+    return this.prisma.procedurePrescriptionItem.update({
+      where: { id: itemId },
+      data: dto,
+      include: { medication: true },
+    });
+  }
+
+  async removePrescriptionItem(clinicId: string, procedureId: string, itemId: string) {
+    await this.assertPrescriptionItemExists(clinicId, procedureId, itemId);
+    await this.prisma.procedurePrescriptionItem.delete({ where: { id: itemId } });
+  }
+
+  private async assertPrescriptionItemExists(clinicId: string, procedureId: string, itemId: string) {
+    const item = await this.prisma.procedurePrescriptionItem.findFirst({
+      where: { id: itemId, procedureId, procedure: { clinicId } },
+    });
+    if (!item) {
+      throw new NotFoundException("Item de receita não encontrado neste serviço.");
+    }
+    return item;
   }
 
   private async assertExists(clinicId: string, id: string) {

@@ -342,3 +342,129 @@ describe("FinanceService.markPaid", () => {
     expect(prisma.commissionEntry.upsert).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `CommissionRule.professionalId` é único GLOBAL e o id vem do path param, que
+ * o TenantGuard não olha. Sem a checagem, um admin da clínica A reescrevia a
+ * comissão de um profissional da clínica B — e recebia de volta a linha dela.
+ */
+describe("FinanceService.upsertCommissionRule — isolamento entre clínicas", () => {
+  it("recusa profissional de outra clínica, sem tocar na regra dele", async () => {
+    const prisma = fakePrisma({
+      professional: { findFirst: jest.fn().mockResolvedValue(null) },
+      commissionRule: { upsert: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+    });
+    const service = new FinanceService(prisma);
+
+    await expect(
+      service.upsertCommissionRule("clinic-1", "prof-da-clinica-b", { percentageBasisPoints: 9999 }),
+    ).rejects.toThrow(NotFoundException);
+    expect(prisma.commissionRule.upsert).not.toHaveBeenCalled();
+  });
+
+  it("grava quando o profissional é da clínica", async () => {
+    const prisma = fakePrisma({
+      professional: { findFirst: jest.fn().mockResolvedValue({ id: "prof-1" }) },
+      commissionRule: { upsert: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
+    });
+    const service = new FinanceService(prisma);
+
+    await service.upsertCommissionRule("clinic-1", "prof-1", { percentageBasisPoints: 3000 });
+
+    expect(prisma.professional.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "prof-1", clinicId: "clinic-1" } }),
+    );
+    expect(prisma.commissionRule.upsert).toHaveBeenCalled();
+  });
+});
+
+/**
+ * A comissão era calculada e acumulada desde a Fase 2, e o endpoint que a
+ * listava não tinha NENHUM consumidor: fechar o mês e pagar a Dra. X era
+ * impossível pela interface.
+ */
+describe("FinanceService.getCommissionReport", () => {
+  function entrada(professionalId: string, nome: string, amountCents: number) {
+    return {
+      id: `entry-${professionalId}-${amountCents}`,
+      amountCents,
+      createdAt: new Date("2026-10-15T12:00:00.000Z"),
+      professional: { id: professionalId, user: { name: nome } },
+      transaction: {
+        category: "Tratamento",
+        dueDate: new Date("2026-10-05T03:00:00.000Z"),
+        paidAt: new Date("2026-10-15T12:00:00.000Z"),
+        amountCents: amountCents * 10,
+        patient: { name: "Fulano" },
+      },
+    };
+  }
+
+  it("agrupa por profissional e soma o que cada um tem a receber", async () => {
+    const prisma = fakePrisma({
+      commissionEntry: {
+        upsert: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          entrada("prof-1", "Dra. Ana", 10800),
+          entrada("prof-2", "Dr. Caio", 5000),
+          entrada("prof-1", "Dra. Ana", 7200),
+        ]),
+      },
+    });
+    const service = new FinanceService(prisma);
+
+    const relatorio = await service.getCommissionReport("clinic-1", "2026-10-01", "2026-10-31");
+
+    expect(relatorio.totalCents).toBe(23000);
+    expect(relatorio.porProfissional).toEqual([
+      { professionalId: "prof-1", nome: "Dra. Ana", totalCents: 18000, quantidade: 2 },
+      { professionalId: "prof-2", nome: "Dr. Caio", totalCents: 5000, quantidade: 1 },
+    ]);
+  });
+
+  // Quem tem mais a receber é o que a clínica precisa ver primeiro.
+  it("ordena do maior para o menor", async () => {
+    const prisma = fakePrisma({
+      commissionEntry: {
+        upsert: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          entrada("prof-1", "Dra. Ana", 100),
+          entrada("prof-2", "Dr. Caio", 9000),
+        ]),
+      },
+    });
+    const service = new FinanceService(prisma);
+
+    const relatorio = await service.getCommissionReport("clinic-1", "2026-10-01", "2026-10-31");
+
+    expect(relatorio.porProfissional.map((p) => p.nome)).toEqual(["Dr. Caio", "Dra. Ana"]);
+  });
+
+  it("período vazio devolve zero, não quebra", async () => {
+    const prisma = fakePrisma({
+      commissionEntry: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    });
+    const service = new FinanceService(prisma);
+
+    await expect(service.getCommissionReport("clinic-1", "2026-10-01", "2026-10-31")).resolves.toEqual({
+      totalCents: 0,
+      porProfissional: [],
+      entries: [],
+    });
+  });
+
+  // O período é lido no fuso da clínica, como todo relatório do financeiro:
+  // uma comissão quitada às 23h de 31/10 em São Paulo pertence a outubro.
+  it("lê o período no fuso da clínica, não no do servidor", async () => {
+    const prisma = fakePrisma({
+      commissionEntry: { upsert: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    });
+    const service = new FinanceService(prisma);
+
+    await service.getCommissionReport("clinic-1", "2026-10-01", "2026-10-31");
+
+    const { where } = (prisma.commissionEntry.findMany as jest.Mock).mock.calls[0][0];
+    expect(where.createdAt.gte.toISOString()).toBe("2026-10-01T03:00:00.000Z");
+    expect(where.createdAt.lte.toISOString()).toBe("2026-11-01T02:59:59.999Z");
+  });
+});

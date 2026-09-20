@@ -2,31 +2,12 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PaymentMethod } from "@odontoflow/db";
 import { PrismaService } from "../../database/prisma.service";
 import { zonedPeriodBoundsUtc } from "../scheduling/timezone.util";
+import { assertProfissionalDaClinica } from "../../common/scope/tenant-scope.util";
+import { dividirEmParcelas, somarMeses } from "./parcelamento.util";
 import { CreateTransactionDto } from "./dto/create-transaction.dto";
 import { UpsertCommissionRuleDto } from "./dto/upsert-commission-rule.dto";
 
 const UM_DIA_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Divide um total em N parcelas sem perder nem criar centavo: o resto da
- * divisão é distribuído nas primeiras parcelas. 100,00 em 3x = 33,34 + 33,33 + 33,33.
- */
-export function dividirEmParcelas(totalCents: number, parcelas: number): number[] {
-  const base = Math.floor(totalCents / parcelas);
-  const resto = totalCents - base * parcelas;
-  return Array.from({ length: parcelas }, (_, i) => base + (i < resto ? 1 : 0));
-}
-
-/** Soma meses prendendo no último dia do mês alvo: 31/01 + 1 mês = 28/02, nunca 03/03. */
-export function somarMeses(data: Date, meses: number): Date {
-  const d = new Date(data.getTime());
-  const dia = d.getUTCDate();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() + meses);
-  const ultimoDiaDoMes = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-  d.setUTCDate(Math.min(dia, ultimoDiaDoMes));
-  return d;
-}
 
 @Injectable()
 export class FinanceService {
@@ -234,7 +215,11 @@ export class FinanceService {
     });
   }
 
-  upsertCommissionRule(clinicId: string, professionalId: string, dto: UpsertCommissionRuleDto) {
+  async upsertCommissionRule(clinicId: string, professionalId: string, dto: UpsertCommissionRuleDto) {
+    // `CommissionRule.professionalId` é único GLOBAL e o id vem do path, que o
+    // TenantGuard não olha: sem esta linha, o ramo `update` reescrevia a
+    // comissão de um profissional de outra clínica.
+    await assertProfissionalDaClinica(this.prisma, clinicId, professionalId);
     return this.prisma.commissionRule.upsert({
       where: { professionalId },
       update: { percentageBasisPoints: dto.percentageBasisPoints },
@@ -247,10 +232,61 @@ export class FinanceService {
     return this.prisma.commissionEntry.findMany({
       where: { clinicId, createdAt: { gte: start, lte: end } },
       include: {
-        professional: { select: { user: { select: { name: true } } } },
-        transaction: { select: { category: true, dueDate: true } },
+        professional: { select: { id: true, user: { select: { name: true } } } },
+        // `select` e não `include`: a linha inteira de Transaction não é
+        // necessária aqui, e a de Patient traria CPF, RG e endereço.
+        transaction: {
+          select: {
+            category: true,
+            dueDate: true,
+            paidAt: true,
+            amountCents: true,
+            patient: { select: { name: true } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
+  }
+
+  /**
+   * Fechamento de comissão do período: quanto cada profissional tem a receber.
+   *
+   * A comissão era calculada e acumulada desde a Fase 2, e o endpoint de
+   * listagem não tinha NENHUM consumidor — o único lugar onde ela aparecia era
+   * um total agregado no ranking do Painel. Fechar o mês e pagar a Dra. X
+   * exigia consultar o banco à mão.
+   *
+   * O período é filtrado por `createdAt` da entrada, que é o instante em que a
+   * parcela foi QUITADA (a comissão nasce no `markPaid`). É o critério certo
+   * para fechamento: comissão se paga sobre o que entrou, não sobre o que foi
+   * prometido.
+   */
+  async getCommissionReport(clinicId: string, from: string, to: string) {
+    const entries = await this.listCommissionEntries(clinicId, from, to);
+
+    const porProfissional = new Map<string, { professionalId: string; nome: string; totalCents: number; quantidade: number }>();
+    let totalCents = 0;
+
+    for (const entry of entries) {
+      totalCents += entry.amountCents;
+      const chave = entry.professional.id;
+      const atual = porProfissional.get(chave) ?? {
+        professionalId: chave,
+        nome: entry.professional.user.name,
+        totalCents: 0,
+        quantidade: 0,
+      };
+      atual.totalCents += entry.amountCents;
+      atual.quantidade += 1;
+      porProfissional.set(chave, atual);
+    }
+
+    return {
+      totalCents,
+      // Maior primeiro: quem tem mais a receber é o que a clínica precisa ver.
+      porProfissional: [...porProfissional.values()].sort((a, b) => b.totalCents - a.totalCents),
+      entries,
+    };
   }
 }

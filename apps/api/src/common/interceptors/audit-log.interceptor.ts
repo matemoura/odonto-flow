@@ -1,4 +1,11 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor, SetMetadata } from "@nestjs/common";
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  NestInterceptor,
+  SetMetadata,
+} from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import { Observable, tap } from "rxjs";
@@ -17,6 +24,8 @@ export const AuditEntity = (entityType: string) => SetMetadata(AUDIT_ENTITY_KEY,
  */
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
+  private readonly logger = new Logger(AuditLogInterceptor.name);
+
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
@@ -50,16 +59,34 @@ export class AuditLogInterceptor implements NestInterceptor {
           (result as { patientId?: string })?.patientId ??
           "unknown";
 
-        void this.prisma.auditLog.create({
-          data: {
-            clinicId: request.tenantId,
-            actorId: request.user?.userId,
-            entityType,
-            entityId,
-            action,
-            ip: request.ip,
-          },
-        });
+        // O `.catch` não é formalidade: `void` numa promise rejeitada é uma
+        // unhandled rejection, e desde o Node 15 isso DERRUBA o processo. Um
+        // Postgres serverless que hiberna (Neon suspende após ~5min ocioso)
+        // faz a primeira gravação depois da soneca falhar — e a API inteira
+        // caía por causa de um log.
+        //
+        // Registrar é obrigatório por LGPD, mas a resposta ao usuário já saiu
+        // quando chegamos aqui: derrubar o processo não desfaz o acesso, só
+        // tira o sistema do ar. O erro fica no log da aplicação (e no Sentry,
+        // se configurado) para ser investigado.
+        void this.prisma.auditLog
+          .create({
+            data: {
+              clinicId: request.tenantId,
+              actorId: request.user?.userId,
+              entityType,
+              entityId,
+              action,
+              ip: request.ip,
+            },
+          })
+          .catch((erro: unknown) => {
+            this.logger.error(
+              `Falha ao gravar AuditLog (${entityType} ${entityId}, ${action}): ${
+                erro instanceof Error ? erro.message : String(erro)
+              }`,
+            );
+          });
       }),
     );
   }

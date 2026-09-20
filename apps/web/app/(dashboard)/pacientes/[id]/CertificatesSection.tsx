@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import type { Certificate, StaffProfessional } from "../../../../lib/api";
 import s from "../../admin.module.css";
+import { formatarData } from "../../../../lib/datas";
+import { useFusoDaClinica } from "../../FusoDaClinica";
+import { FalhaAoCarregar } from "./FalhaAoCarregar";
 
 const TYPE_LABEL: Record<Certificate["type"], string> = {
   ATTENDANCE: "Comparecimento",
@@ -16,6 +19,7 @@ function todayIso() {
 }
 
 function CertificateCard({ certificate }: { certificate: Certificate }) {
+  const fuso = useFusoDaClinica();
   const router = useRouter();
   const [erro, setErro] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState(false);
@@ -53,7 +57,7 @@ function CertificateCard({ certificate }: { certificate: Certificate }) {
         <span className="chip chip--estatico">{beneficiaryLabel}</span>
       </div>
       <span style={{ fontSize: 12.5 }}>
-        Visita em {new Intl.DateTimeFormat("pt-BR").format(new Date(certificate.visitDate))} — emitido por{" "}
+        Visita em {formatarData(certificate.visitDate, fuso)} — emitido por{" "}
         {certificate.professional.user.name}
       </span>
       {certificate.type === "MEDICAL" ? (
@@ -92,15 +96,17 @@ export function CertificatesSection({
   professionals,
 }: {
   patientId: string;
-  certificates: Certificate[];
-  professionals: StaffProfessional[];
+  certificates: Certificate[] | null;
+  professionals: StaffProfessional[] | null;
 }) {
   const router = useRouter();
+  // Nulo = falha de leitura, não ausência de cadastro (ver FalhaAoCarregar).
+  const profissionaisDisponiveis = professionals ?? [];
   const [aberto, setAberto] = useState(false);
   const [type, setType] = useState<Certificate["type"]>("ATTENDANCE");
   const [beneficiary, setBeneficiary] = useState<Certificate["beneficiary"]>("PATIENT");
   const [companionName, setCompanionName] = useState("");
-  const [professionalId, setProfessionalId] = useState(professionals[0]?.id ?? "");
+  const [professionalId, setProfessionalId] = useState(profissionaisDisponiveis[0]?.id ?? "");
   const [visitDate, setVisitDate] = useState(todayIso());
   const [arrivalTime, setArrivalTime] = useState("");
   const [departureTime, setDepartureTime] = useState("");
@@ -153,7 +159,9 @@ export function CertificatesSection({
     <section className={s.bloco}>
       <h2 style={{ fontSize: 14, fontWeight: 600 }}>Atestados</h2>
 
-      {certificates.length === 0 ? (
+      {certificates === null ? (
+        <FalhaAoCarregar oQue="os atestados" />
+      ) : certificates.length === 0 ? (
         <p className={s.vazio}>Nenhum atestado emitido ainda.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -214,7 +222,7 @@ export function CertificatesSection({
           <div className={s.campo}>
             <label className={s.rotuloCampo}>Profissional</label>
             <select className={s.input} value={professionalId} onChange={(e) => setProfessionalId(e.target.value)}>
-              {professionals.map((p) => (
+              {profissionaisDisponiveis.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.user.name}
                 </option>

@@ -29,7 +29,7 @@ describe("InvoicesService.issueForTransaction", () => {
 
   it("recusa emitir nota para uma despesa", async () => {
     const prisma = fakePrisma();
-    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue({ id: "tx-1", type: "EXPENSE", paidAt: new Date() });
+    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue({ id: "tx-1", type: "EXPENSE", paidAt: new Date() , patient: { cpf: "12345678909", name: "Fulano" } });
     const service = new InvoicesService(prisma, fakeNfe());
 
     await expect(service.issueForTransaction("clinic-1", "tx-1")).rejects.toThrow(BadRequestException);
@@ -45,7 +45,7 @@ describe("InvoicesService.issueForTransaction", () => {
 
   it("é idempotente — retorna a nota já emitida em vez de emitir de novo", async () => {
     const prisma = fakePrisma();
-    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue({ id: "tx-1", type: "INCOME", paidAt: new Date() });
+    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue({ id: "tx-1", type: "INCOME", paidAt: new Date() , patient: { cpf: "12345678909", name: "Fulano" } });
     const existingInvoice = { id: "invoice-1", status: "ISSUED" };
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(existingInvoice);
     const nfe = fakeNfe();
@@ -66,6 +66,7 @@ describe("InvoicesService.issueForTransaction", () => {
       paidAt: new Date(),
       amountCents: 25000,
       category: "Restauração",
+      patient: { cpf: "12345678909", name: "Fulano" },
     });
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.invoice.create as jest.Mock).mockImplementation(({ data }) => data);
@@ -81,5 +82,56 @@ describe("InvoicesService.issueForTransaction", () => {
       "clinic-1",
       expect.objectContaining({ transactionId: "tx-1", amountCents: 25000 }),
     );
+  });
+});
+
+/**
+ * A nota saía com o CPF fixo "00000000000" porque o lançamento não sabia de
+ * quem era o dinheiro — `Transaction` não tinha `patientId`. Emitir documento
+ * fiscal com CPF inventado é pior do que não emitir.
+ */
+describe("InvoicesService — CPF do tomador", () => {
+  function transacaoPaga(patient: { cpf: string | null } | null) {
+    return { id: "tx-1", type: "INCOME", paidAt: new Date(), amountCents: 25000, category: "Restauração", patient };
+  }
+
+  it("usa o CPF do paciente vinculado ao lançamento", async () => {
+    const prisma = fakePrisma();
+    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue(
+      transacaoPaga({ cpf: "98765432100" }),
+    );
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.invoice.create as jest.Mock).mockImplementation(({ data }) => data);
+    const nfe = fakeNfe();
+    const service = new InvoicesService(prisma, nfe);
+
+    await service.issueForTransaction("clinic-1", "tx-1");
+
+    expect(nfe.issueServiceInvoice).toHaveBeenCalledWith(
+      "clinic-1",
+      expect.objectContaining({ customerDocument: "98765432100" }),
+    );
+  });
+
+  it("recusa emitir quando o lançamento não tem paciente vinculado", async () => {
+    const prisma = fakePrisma();
+    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue(transacaoPaga(null));
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
+    const nfe = fakeNfe();
+    const service = new InvoicesService(prisma, nfe);
+
+    await expect(service.issueForTransaction("clinic-1", "tx-1")).rejects.toThrow(BadRequestException);
+    expect(nfe.issueServiceInvoice).not.toHaveBeenCalled();
+  });
+
+  it("recusa emitir quando o paciente não tem CPF cadastrado", async () => {
+    const prisma = fakePrisma();
+    (prisma.transaction.findFirst as jest.Mock).mockResolvedValue(transacaoPaga({ cpf: null }));
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue(null);
+    const nfe = fakeNfe();
+    const service = new InvoicesService(prisma, nfe);
+
+    await expect(service.issueForTransaction("clinic-1", "tx-1")).rejects.toThrow(BadRequestException);
+    expect(nfe.issueServiceInvoice).not.toHaveBeenCalled();
   });
 });

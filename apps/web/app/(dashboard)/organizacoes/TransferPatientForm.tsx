@@ -3,10 +3,10 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import type { OrganizationClinic, Patient } from "../../../lib/api";
+import type { OrganizationClinic, PatientOption } from "../../../lib/api";
 import s from "../admin.module.css";
 
-export function TransferPatientForm({ patients, clinics }: { patients: Patient[]; clinics: OrganizationClinic[] }) {
+export function TransferPatientForm({ patients, clinics }: { patients: PatientOption[]; clinics: OrganizationClinic[] }) {
   const router = useRouter();
   const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
   const [toClinicId, setToClinicId] = useState(clinics[0]?.id ?? "");

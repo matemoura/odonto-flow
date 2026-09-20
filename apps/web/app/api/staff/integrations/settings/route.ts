@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, updateIntegrationConfig, type IntegrationKind } from "../../../../../lib/api";
+import { ApiError, updateClinicIntegrationSettings } from "../../../../../lib/api";
 import { getStaffSession } from "../../../../../lib/session";
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ kind: string }> }) {
+/** Só os campos da clínica. Provedor e liberação são do dono da plataforma. */
+export async function PUT(req: NextRequest) {
   const session = await getStaffSession();
   if (!session) {
     return NextResponse.json({ message: "Sessão expirada." }, { status: 401 });
   }
 
-  const { kind } = await params;
-  const body = await req.json();
+  const body = await req.json().catch(() => ({}));
   try {
-    const config = await updateIntegrationConfig(session.clinicSlug, session.token, kind as IntegrationKind, body);
-    return NextResponse.json(config);
+    const view = await updateClinicIntegrationSettings(session.clinicSlug, session.token, {
+      whatsappPhone: body.whatsappPhone ?? null,
+    });
+    return NextResponse.json(view);
   } catch (error) {
     if (error instanceof ApiError) {
       return NextResponse.json({ message: error.message }, { status: error.status });

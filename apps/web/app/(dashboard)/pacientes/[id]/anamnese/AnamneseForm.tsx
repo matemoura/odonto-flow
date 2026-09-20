@@ -34,6 +34,12 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
   const [hasBleedingDisorder, setHasBleedingDisorder] = useState(initial?.hasBleedingDisorder ?? false);
   const [isPregnant, setIsPregnant] = useState(initial?.isPregnant ?? false);
   const [isSmoker, setIsSmoker] = useState(initial?.isSmoker ?? false);
+  const [hasChronicKidneyDisease, setHasChronicKidneyDisease] = useState(
+    initial?.hasChronicKidneyDisease ?? false,
+  );
+  const [hasCancerOrImmunosuppression, setHasCancerOrImmunosuppression] = useState(
+    initial?.hasCancerOrImmunosuppression ?? false,
+  );
   const [hasAllergies, setHasAllergies] = useState(initial?.hasAllergies ?? false);
   const [allergyDetails, setAllergyDetails] = useState(initial?.allergyDetails ?? "");
   const [currentMedications, setCurrentMedications] = useState(initial?.currentMedications ?? "");
@@ -72,6 +78,8 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
           hasBleedingDisorder,
           isPregnant,
           isSmoker,
+          hasChronicKidneyDisease,
+          hasCancerOrImmunosuppression,
           hasAllergies,
           allergyDetails: allergyDetails || undefined,
           currentMedications: currentMedications || undefined,
@@ -141,6 +149,16 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
         <Checkbox label="Distúrbio de coagulação" checked={hasBleedingDisorder} onChange={setHasBleedingDisorder} />
         <Checkbox label="Gestante" checked={isPregnant} onChange={setIsPregnant} />
         <Checkbox label="Fumante" checked={isSmoker} onChange={setIsSmoker} />
+        <Checkbox
+          label="Insuficiência renal crônica"
+          checked={hasChronicKidneyDisease}
+          onChange={setHasChronicKidneyDisease}
+        />
+        <Checkbox
+          label="Câncer / imunossupressão"
+          checked={hasCancerOrImmunosuppression}
+          onChange={setHasCancerOrImmunosuppression}
+        />
         <Checkbox label="Possui alergias" checked={hasAllergies} onChange={setHasAllergies} />
       </div>
       {hasAllergies ? (

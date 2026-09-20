@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPatients, getStaffProfessionals } from "../../../../lib/api";
+import { getPatientOptions, getStaffProfessionals } from "../../../../lib/api";
 import { getStaffSession } from "../../../../lib/session";
 import { NovoAgendamentoForm } from "./NovoAgendamentoForm";
 import s from "../../admin.module.css";
@@ -14,7 +14,7 @@ export default async function NovoAgendamentoPage() {
   let professionals;
   try {
     [patients, professionals] = await Promise.all([
-      getPatients(session.clinicSlug, session.token),
+      getPatientOptions(session.clinicSlug, session.token),
       getStaffProfessionals(session.clinicSlug, session.token),
     ]);
   } catch {
@@ -30,7 +30,7 @@ export default async function NovoAgendamentoPage() {
   return (
     <div className={s.pagina}>
       <h1 className={s.titulo}>Novo agendamento</h1>
-      <NovoAgendamentoForm patients={patients} professionals={professionals} />
+      <NovoAgendamentoForm patients={patients.itens} professionals={professionals} />
     </div>
   );
 }

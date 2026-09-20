@@ -1,22 +1,20 @@
 import { Injectable, NotImplementedException } from "@nestjs/common";
 import { ESignatureProvider, MockESignatureProvider, SignatureEnvelopeRequest } from "@odontoflow/integration-e-signature";
-import { PrismaService } from "../../database/prisma.service";
+import { IntegrationsConfigService } from "./integrations-config.service";
 
 @Injectable()
 export class ESignatureGatewayService {
   private readonly mock = new MockESignatureProvider();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly config: IntegrationsConfigService) {}
 
   async resolveProvider(clinicId: string): Promise<ESignatureProvider> {
-    const config = await this.prisma.integrationConfig.findUnique({
-      where: { clinicId_kind: { clinicId, kind: "E_SIGNATURE" } },
-    });
-    if (!config || config.providerName === "mock") {
+    const { providerName } = await this.config.requireReleased(clinicId, "E_SIGNATURE");
+    if (providerName === "mock") {
       return this.mock;
     }
     throw new NotImplementedException(
-      `Provedor de assinatura "${config.providerName}" ainda não está implementado — plugue Autentique/Clicksign/D4Sign em ESignatureGatewayService.`,
+      `Provedor de assinatura "${providerName}" ainda não está implementado — plugue Autentique/Clicksign/D4Sign em ESignatureGatewayService.`,
     );
   }
 

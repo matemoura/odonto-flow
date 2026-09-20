@@ -10,6 +10,8 @@ import { CreateProcedureDto } from "./dto/create-procedure.dto";
 import { UpdateProcedureDto } from "./dto/update-procedure.dto";
 import { CreateProcedureMaterialDto } from "./dto/create-procedure-material.dto";
 import { UpdateProcedureMaterialDto } from "./dto/update-procedure-material.dto";
+import { CreateProcedurePrescriptionItemDto } from "./dto/create-procedure-prescription-item.dto";
+import { UpdateProcedurePrescriptionItemDto } from "./dto/update-procedure-prescription-item.dto";
 
 @Controller("procedures")
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -72,5 +74,37 @@ export class ProceduresController {
   @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
   removeMaterial(@CurrentTenant() clinicId: string, @Param("id") id: string, @Param("materialId") materialId: string) {
     return this.procedures.removeMaterial(clinicId, id, materialId);
+  }
+
+  @Post(":id/prescription-items")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  addPrescriptionItem(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Body() dto: CreateProcedurePrescriptionItemDto,
+  ) {
+    return this.procedures.addPrescriptionItem(clinicId, id, dto);
+  }
+
+  @Patch(":id/prescription-items/:itemId")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  updatePrescriptionItem(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+    @Body() dto: UpdateProcedurePrescriptionItemDto,
+  ) {
+    return this.procedures.updatePrescriptionItem(clinicId, id, itemId, dto);
+  }
+
+  @Delete(":id/prescription-items/:itemId")
+  @HttpCode(204)
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  removePrescriptionItem(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+  ) {
+    return this.procedures.removePrescriptionItem(clinicId, id, itemId);
   }
 }

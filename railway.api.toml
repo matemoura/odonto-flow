@@ -1,0 +1,58 @@
+# Config as code do serviço da API (apps/api) no Railway.
+#
+# Como usar: crie um serviço novo no projeto Railway a partir deste repositório
+# e, nas Settings do serviço, em "Config-as-code file path", aponte para
+# `railway.api.toml` (a Root Directory do serviço continua a raiz do repo —
+# não mude, veja o motivo no comentário do buildCommand).
+#
+# Veja RAILWAY.md para o passo a passo completo (banco, variáveis, ordem dos
+# serviços, criação do super-admin).
+#
+# AVISO: este arquivo nunca foi usado num deploy real. O primeiro deploy é o
+# teste dele — se algo falhar, o log de build do Railway diz onde.
+
+[build]
+builder = "NIXPACKS"
+
+# O build roda na raiz do monorepo, não em apps/api: a API depende de pacotes
+# do workspace (@odontoflow/db, shared-types, integrations) que precisam ser
+# instalados e compilados junto. Por isso a Root Directory do serviço continua
+# a raiz do repo, e é este comando (não a Root Directory) que decide o que sai
+# no bundle final.
+#
+# `--filter=@odontoflow/api...` (com as três reticências) constrói a API e
+# tudo de que ela depende, sem construir o front — trabalho jogado fora aqui.
+#
+# `prisma migrate deploy` está no build, não num pre-deploy command separado,
+# pelo mesmo motivo do antigo blueprint do Render: enquanto as migrations
+# forem só aditivas isso é inofensivo. No dia em que uma migration remover
+# coluna, mova este passo para "Deploy > Pre-Deploy Command" nas Settings do
+# serviço (esse recurso já existe no Railway, diferente do plano free do
+# Render de antes) ou rode a migration à mão antes do deploy.
+#
+# `npm i -g corepack@latest` antes do `corepack enable`: o corepack embutido
+# no Node às vezes traz a lista de chaves de assinatura do registry congelada
+# e morre com "Cannot find matching keyid" ao baixar um pnpm recente — na
+# PRIMEIRA linha do build, antes de instalar qualquer coisa. Mantido aqui por
+# segurança (o mesmo problema já apareceu no Render); se o build do Railway
+# não precisar, essa linha é só um no-op inofensivo.
+buildCommand = "npm i -g corepack@latest && corepack enable && pnpm install --frozen-lockfile && pnpm db:generate && pnpm turbo run build --filter=@odontoflow/api... && pnpm --filter @odontoflow/db exec prisma migrate deploy"
+
+[deploy]
+startCommand = "pnpm --filter @odontoflow/api start"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Variáveis de ambiente deste serviço (definidas no dashboard do Railway, não
+# aqui — este arquivo não tem como gerar segredo nem referenciar outro
+# serviço). Ver `apps/api/.env.example` pro significado de cada uma:
+#
+#   DATABASE_URL          = ${{Postgres.DATABASE_URL}} (referência ao plugin de Postgres do projeto)
+#   WEB_APP_URL            = URL pública do serviço web no Railway (aceita várias, separadas por vírgula)
+#   JWT_ACCESS_SECRET       = valor aleatório — node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+#   JWT_REFRESH_SECRET      = outro valor aleatório, diferente do de cima
+#   WHATSAPP_WEBHOOK_SECRET = outro valor aleatório (a rota do webhook falha fechada sem isso)
+#   SENTRY_DSN              = opcional
+#   PORT                    = não precisa setar: o Railway injeta sozinho e apps/api/src/main.ts já lê `process.env.PORT`

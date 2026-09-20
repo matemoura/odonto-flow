@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getIntegrationsConfig } from "../../../lib/api";
+import { integracao } from "../../../lib/integracoes";
 import { getStaffSession } from "../../../lib/session";
-import { IntegrationRow } from "./IntegrationRow";
+import { WhatsAppDaClinicaForm } from "./WhatsAppDaClinicaForm";
 import s from "../admin.module.css";
 
 export const metadata = { title: "Integrações — Odonto Flow" };
@@ -10,9 +11,9 @@ export default async function IntegracoesPage() {
   const session = await getStaffSession();
   if (!session) redirect("/entrar");
 
-  let configs;
+  let view;
   try {
-    configs = await getIntegrationsConfig(session.clinicSlug, session.token);
+    view = await getIntegrationsConfig(session.clinicSlug, session.token);
   } catch {
     return (
       <div className={s.pagina}>
@@ -26,16 +27,45 @@ export default async function IntegracoesPage() {
   return (
     <div className={s.pagina}>
       <h1 className={s.titulo}>Integrações</h1>
-      <p style={{ fontSize: 13, color: "var(--tinta-70)", maxWidth: 600 }}>
-        Cada integração roda em modo <strong>mock</strong> por padrão — grátis, sem contratar nada. Trocar o
-        provedor aqui só funciona quando alguém plugar a implementação real no código (ver
-        packages/integrations/*); até lá, um provedor diferente de &quot;mock&quot; vai dar erro ao usar.
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 520 }}>
-        {configs.map((c) => (
-          <IntegrationRow key={c.kind} kind={c.kind} providerName={c.providerName} enabled={c.enabled} />
-        ))}
-      </div>
+
+      {view.integrations.length === 0 ? (
+        <p className={s.vazio}>
+          Nenhuma integração liberada para esta clínica ainda. Quem libera é a equipe do Odonto Flow — fale
+          com a gente para ativar WhatsApp, nota fiscal ou assinatura eletrônica.
+        </p>
+      ) : (
+        <>
+          <p className={s.dica}>
+            Estas são as integrações ativas na sua clínica. Quem contrata e configura o serviço é a equipe do
+            Odonto Flow; aqui você preenche só o que é seu. As marcadas como <strong>demonstração</strong>
+            {" "}ainda simulam o resultado: o sistema registra o que faria, mas nada sai da clínica de verdade.
+          </p>
+
+          <div className={s.blocos}>
+            {view.integrations.map(({ kind, providerName }) => {
+              const info = integracao(kind);
+              if (!info) return null;
+              return (
+                <div key={kind} className={s.bloco}>
+                  <div className={s.tituloComSelo}>
+                    <h2 className={s.blocoTitulo}>{info.nome}</h2>
+                    {/* Nenhum provedor real está implementado ainda: o gateway
+                        recusa qualquer valor diferente de "mock". Chamar isso
+                        de "ativa" seria prometer um envio que não acontece. */}
+                    {providerName === "mock" ? (
+                      <span className="chip chip--estatico chip--alerta">demonstração</span>
+                    ) : (
+                      <span className="chip chip--estatico chip--alerta">em configuração</span>
+                    )}
+                  </div>
+                  <p className={s.dica}>{info.oQueFaz}</p>
+                  {kind === "WHATSAPP" ? <WhatsAppDaClinicaForm whatsappPhone={view.whatsappPhone} /> : null}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

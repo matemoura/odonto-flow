@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { OrthodonticStepStatus } from "@odontoflow/db";
 import { PrismaService } from "../../database/prisma.service";
+import { assertPacienteDaClinica } from "../../common/scope/tenant-scope.util";
+import { zonedDateOnlyToUtc } from "../scheduling/timezone.util";
 import { CreateTreatmentDto } from "./dto/create-treatment.dto";
 import { AddStepDto } from "./dto/add-step.dto";
 import { UpdateStepStatusDto } from "./dto/update-step-status.dto";
@@ -14,6 +16,15 @@ const TREATMENT_INCLUDE = {
 @Injectable()
 export class OrthodonticsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Fuso da clínica — datas sem hora ("2026-09-18") são lidas nele, não no do processo. */
+  private async getTimezone(clinicId: string): Promise<string> {
+    const clinic = await this.prisma.clinic.findUniqueOrThrow({
+      where: { id: clinicId },
+      select: { timezone: true },
+    });
+    return clinic.timezone;
+  }
 
   listForPatient(clinicId: string, patientId: string) {
     return this.prisma.orthodonticTreatment.findMany({
@@ -41,6 +52,9 @@ export class OrthodonticsService {
     if (!professional) {
       throw new NotFoundException("Profissional não encontrado.");
     }
+    // O profissional já era conferido contra a clínica; o paciente não era.
+    await assertPacienteDaClinica(this.prisma, clinicId, dto.patientId);
+    const timeZone = await this.getTimezone(clinicId);
 
     return this.prisma.orthodonticTreatment.create({
       data: {
@@ -48,14 +62,16 @@ export class OrthodonticsService {
         patientId: dto.patientId,
         professionalId: dto.professionalId,
         applianceType: dto.applianceType,
-        startedAt: new Date(dto.startedAt),
+        startedAt: zonedDateOnlyToUtc(dto.startedAt, timeZone),
         notes: dto.notes,
         steps: dto.steps?.length
           ? {
               create: dto.steps.map((step, index) => ({
                 sequence: index + 1,
                 description: step.description,
-                scheduledFor: step.scheduledFor ? new Date(step.scheduledFor) : undefined,
+                scheduledFor: step.scheduledFor
+                  ? zonedDateOnlyToUtc(step.scheduledFor, timeZone)
+                  : undefined,
               })),
             }
           : undefined,
@@ -79,7 +95,9 @@ export class OrthodonticsService {
         treatmentId,
         sequence: nextSequence,
         description: dto.description,
-        scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : undefined,
+        scheduledFor: dto.scheduledFor
+          ? zonedDateOnlyToUtc(dto.scheduledFor, await this.getTimezone(clinicId))
+          : undefined,
       },
     });
     return this.getOne(clinicId, treatmentId);

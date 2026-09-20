@@ -16,14 +16,17 @@ import {
 import { formatZonedIsoDate, formatZonedTime, getZonedParts, zonedDateTimeToUtc } from "./timezone.util";
 import { CreatePublicAppointmentDto } from "./dto/create-public-appointment.dto";
 import { CreateAppointmentDto } from "./dto/create-appointment.dto";
+import {
+  ROTULO_STATUS,
+  STATUS_QUE_OCUPAM_HORARIO,
+  reocupaHorario,
+  transicaoPermitida,
+} from "./appointment-status.util";
 
-const ACTIVE_STATUSES: AppointmentStatus[] = [
-  "SCHEDULED",
-  "CONFIRMED",
-  "WAITING",
-  "FILLING_FORM",
-  "COMPLETED",
-];
+// Os status que ocupam o horário do profissional vivem em
+// appointment-status.util junto da máquina de transições — duas listas
+// separadas dizendo a mesma coisa acabariam divergindo.
+const ACTIVE_STATUSES = STATUS_QUE_OCUPAM_HORARIO;
 
 @Injectable()
 export class SchedulingService {
@@ -423,7 +426,9 @@ export class SchedulingService {
     if (!patient) throw new NotFoundException("Paciente não encontrado.");
     if (!professional) throw new NotFoundException("Profissional não encontrado.");
 
-    const startAt = new Date(dto.startAt);
+    // Resolvido aqui, no fuso da clínica — e não no navegador de quem
+    // preenche, que pode estar em outro fuso.
+    const startAt = zonedDateTimeToUtc(dto.date, dto.time, config.timezone);
     // A recepção ainda pode informar uma duração diferente para um caso
     // específico; sem isso, vale o encaixe padrão da clínica.
     const duracao = dto.durationMinutes ?? config.expediente.slotDurationMinutes;
@@ -458,12 +463,17 @@ export class SchedulingService {
   async updateStatus(clinicId: string, id: string, status: AppointmentStatus) {
     const appointment = await this.prisma.appointment.findFirst({
       where: { id, clinicId },
+      // `status`, `endAt` e `professionalId` entram para validar a transição e
+      // checar conflito ao reativar — nada disso é devolvido ao cliente.
       // Só os campos usados pela notificação. Buscar a linha inteira de `User`
       // traria o `passwordHash` para a memória sem necessidade, e bastaria
       // alguém trocar o `return updated` por `return appointment` para virar
       // vazamento.
       select: {
+        status: true,
         startAt: true,
+        endAt: true,
+        professionalId: true,
         patient: { select: { name: true, phone: true } },
         professional: { select: { user: { select: { name: true } } } },
       },
@@ -471,6 +481,38 @@ export class SchedulingService {
     if (!appointment) {
       throw new NotFoundException("Consulta não encontrada.");
     }
+
+    if (appointment.status === status) {
+      // Clique repetido não é erro — só não faz nada.
+      return this.prisma.appointment.findUniqueOrThrow({ where: { id } });
+    }
+    if (!transicaoPermitida(appointment.status, status)) {
+      throw new BadRequestException(
+        `Uma consulta ${ROTULO_STATUS[appointment.status]} não pode passar para ${ROTULO_STATUS[status]}.`,
+      );
+    }
+
+    // Reativar (cancelada/falta → agendada) devolve a consulta ao horário que
+    // já tinha sido liberado. Se alguém ocupou esse horário nesse meio-tempo,
+    // recusar é melhor do que empilhar dois pacientes no mesmo encaixe.
+    if (reocupaHorario(appointment.status, status)) {
+      const conflito = await this.prisma.appointment.findFirst({
+        where: {
+          clinicId,
+          professionalId: appointment.professionalId,
+          id: { not: id },
+          status: { in: ACTIVE_STATUSES },
+          startAt: { lt: appointment.endAt },
+          endAt: { gt: appointment.startAt },
+        },
+      });
+      if (conflito) {
+        throw new ConflictException(
+          "Este horário já foi ocupado por outra consulta. Agende um novo horário para este paciente.",
+        );
+      }
+    }
+
     const updated = await this.prisma.appointment.update({ where: { id }, data: { status } });
 
     if (status === "CONFIRMED") {

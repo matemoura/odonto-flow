@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSession } from "../../../../../../lib/session";
+import { API_URL } from "../../../../../../lib/api-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ professionalId: string }> }) {
   const session = await getStaffSession();

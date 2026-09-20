@@ -3,8 +3,18 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import type { Budget, Contract, Procedure, StaffProfessional } from "../../../../lib/api";
+import {
+  CONTRACT_STATUS_LABEL,
+  type Budget,
+  type Contract,
+  type ContractStatus,
+  type Procedure,
+  type StaffProfessional,
+} from "../../../../lib/api";
 import s from "../../admin.module.css";
+import { formatarData } from "../../../../lib/datas";
+import { useFusoDaClinica } from "../../FusoDaClinica";
+import { FalhaAoCarregar } from "./FalhaAoCarregar";
 
 function formatCents(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -18,25 +28,38 @@ const STATUS_LABEL: Record<Budget["status"], string> = {
 };
 
 function BudgetCard({ budget, initialContract }: { budget: Budget; initialContract: Contract }) {
+  const fuso = useFusoDaClinica();
   const router = useRouter();
   const [contract, setContract] = useState<Contract>(initialContract);
   const [carregandoContrato, setCarregandoContrato] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [aprovando, setAprovando] = useState(false);
+  const [parcelas, setParcelas] = useState("1");
+  const [primeiroVencimento, setPrimeiroVencimento] = useState("");
   const [itemEmAndamento, setItemEmAndamento] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   const total = budget.items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
 
-  async function updateStatus(status: Budget["status"]) {
+  async function updateStatus(
+    status: Budget["status"],
+    pagamento?: { installments: number; firstDueDate: string },
+  ) {
     setEnviando(true);
     setErro(null);
     try {
       const res = await fetch(`/api/staff/budgets/${budget.id}/status`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...pagamento }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          Array.isArray(data.message) ? data.message[0] : (data.message ?? "Não foi possível atualizar."),
+        );
+      }
+      setAprovando(false);
       router.refresh();
     } catch {
       setErro("Falha ao atualizar.");
@@ -111,21 +134,89 @@ function BudgetCard({ budget, initialContract }: { budget: Budget; initialContra
       {erro ? <span style={{ fontSize: 11.5, color: "var(--ameixa)" }}>{erro}</span> : null}
 
       {budget.status === "PENDING" ? (
-        <div style={{ display: "flex", gap: 6 }}>
-          <Button variant="secondary" className="odontoflow-btn--sm" onClick={() => updateStatus("APPROVED")} disabled={enviando}>
-            Aprovar
-          </Button>
-          <Button variant="ghost" className="odontoflow-btn--sm" onClick={() => updateStatus("DECLINED")} disabled={enviando}>
-            Recusar
-          </Button>
-        </div>
+        aprovando ? (
+          /* Aprovar passou a lançar o contas a receber, então a condição de
+             pagamento é combinada aqui — antes a clínica aprovava e redigitava
+             tudo à mão no financeiro, sem vínculo com o orçamento. */
+          <div className={s.condicaoDePagamento}>
+            <strong style={{ fontSize: 12.5 }}>Como o paciente vai pagar?</strong>
+
+            <div className={s.campo}>
+              <label className={s.rotuloCampo} htmlFor={`parcelas-${budget.id}`}>
+                Parcelas
+              </label>
+              <input
+                id={`parcelas-${budget.id}`}
+                type="number"
+                min={1}
+                max={24}
+                className={s.input}
+                value={parcelas}
+                onChange={(e) => setParcelas(e.target.value)}
+              />
+            </div>
+
+            <div className={s.campo}>
+              <label className={s.rotuloCampo} htmlFor={`vencimento-${budget.id}`}>
+                Primeiro vencimento
+              </label>
+              <input
+                id={`vencimento-${budget.id}`}
+                type="date"
+                className={s.input}
+                value={primeiroVencimento}
+                onChange={(e) => setPrimeiroVencimento(e.target.value)}
+              />
+            </div>
+
+            <span className={s.dica}>
+              {Number(parcelas) > 1
+                ? `${parcelas}x de ${formatCents(Math.floor(total / Number(parcelas)))} — as parcelas vencem de mês em mês.`
+                : `Uma cobrança de ${formatCents(total)}.`}
+            </span>
+
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button
+                variant="primary"
+                className="odontoflow-btn--sm"
+                disabled={enviando}
+                onClick={() =>
+                  updateStatus("APPROVED", {
+                    installments: Math.max(1, Number(parcelas) || 1),
+                    // Sem data escolhida, vence hoje — a API assume o mesmo.
+                    firstDueDate: primeiroVencimento || new Date().toISOString().slice(0, 10),
+                  })
+                }
+              >
+                {enviando ? "Aprovando…" : "Aprovar e lançar"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="odontoflow-btn--sm"
+                onClick={() => setAprovando(false)}
+                disabled={enviando}
+              >
+                Voltar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 6 }}>
+            <Button variant="secondary" className="odontoflow-btn--sm" onClick={() => setAprovando(true)} disabled={enviando}>
+              Aprovar
+            </Button>
+            <Button variant="ghost" className="odontoflow-btn--sm" onClick={() => updateStatus("DECLINED")} disabled={enviando}>
+              Recusar
+            </Button>
+          </div>
+        )
       ) : null}
 
       {budget.status === "APPROVED" ? (
         contract ? (
-          <span style={{ fontSize: 12, color: "#38715c" }}>
-            Contrato {contract.status === "SIGNED" ? "assinado" : contract.status.toLowerCase()}
-            {contract.signedAt ? ` em ${new Intl.DateTimeFormat("pt-BR").format(new Date(contract.signedAt))}` : ""}.
+          <span style={{ fontSize: 12, color: contract.status === "SIGNED" ? "#38715c" : "var(--tinta-70)" }}>
+            Contrato {CONTRACT_STATUS_LABEL[contract.status as ContractStatus] ?? contract.status}
+            {contract.signedAt ? ` em ${formatarData(contract.signedAt, fuso)}` : ""}.
           </span>
         ) : (
           <Button variant="secondary" className="odontoflow-btn--sm" onClick={handleGenerateContract} disabled={carregandoContrato}>
@@ -145,15 +236,20 @@ export function BudgetsSection({
   contractsByBudgetId,
 }: {
   patientId: string;
-  budgets: Budget[];
-  procedures: Procedure[];
-  professionals: StaffProfessional[];
+  budgets: Budget[] | null;
+  procedures: Procedure[] | null;
+  professionals: StaffProfessional[] | null;
   contractsByBudgetId: Record<string, Contract>;
 }) {
   const router = useRouter();
-  const procedimentosAtivos = procedures.filter((p) => p.active);
+  // Catálogo nulo = a leitura falhou. Para o formulário o efeito é o mesmo de
+  // estar vazio (não dá para escolher), mas o MOTIVO é outro — e é o motivo
+  // que o usuário precisa ler.
+  const catalogoIndisponivel = procedures === null || professionals === null;
+  const procedimentosAtivos = (procedures ?? []).filter((p) => p.active);
+  const profissionaisDisponiveis = professionals ?? [];
   const [aberto, setAberto] = useState(false);
-  const [professionalId, setProfessionalId] = useState(professionals[0]?.id ?? "");
+  const [professionalId, setProfessionalId] = useState(profissionaisDisponiveis[0]?.id ?? "");
   const [procedureId, setProcedureId] = useState(procedimentosAtivos[0]?.id ?? "");
   const [quantity, setQuantity] = useState(1);
   const [erro, setErro] = useState<string | null>(null);
@@ -190,7 +286,9 @@ export function BudgetsSection({
     <section className={s.bloco}>
       <h2 style={{ fontSize: 14, fontWeight: 600 }}>Orçamentos</h2>
 
-      {budgets.length === 0 ? (
+      {budgets === null ? (
+        <FalhaAoCarregar oQue="os orçamentos" />
+      ) : budgets.length === 0 ? (
         <p className={s.vazio}>Nenhum orçamento ainda.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -199,6 +297,13 @@ export function BudgetsSection({
           ))}
         </div>
       )}
+
+      {/* O botão já nascia desabilitado quando faltava serviço ou profissional
+          — mas sem dizer por quê, e "não tem nada cadastrado" é diferente de
+          "não consegui ler o cadastro". */}
+      {catalogoIndisponivel ? (
+        <FalhaAoCarregar oQue="o catálogo de serviços e profissionais" />
+      ) : null}
 
       {!aberto ? (
         <Button variant="primary" onClick={() => setAberto(true)} style={{ alignSelf: "flex-start" }} disabled={!professionalId || !procedureId}>
@@ -214,7 +319,7 @@ export function BudgetsSection({
           <div className={s.campo}>
             <label className={s.rotuloCampo}>Profissional</label>
             <select className={s.input} value={professionalId} onChange={(e) => setProfessionalId(e.target.value)}>
-              {professionals.map((p) => (
+              {profissionaisDisponiveis.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.user.name}
                 </option>

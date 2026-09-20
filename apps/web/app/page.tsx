@@ -65,10 +65,12 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Esta página é pública. Nenhuma credencial aqui: a senha do seed é a
+          mesma do administrador da clínica e a do dono da plataforma, então
+          imprimi-la no rodapé entregava o painel inteiro a quem abrisse o
+          site. Quem precisa das contas de demonstração encontra no README. */}
       <p className={s.rodape}>
-        Ambiente de demonstração. Login de equipe para a clínica Vila Nova:{" "}
-        <code>ana.prado@vilanova.com</code> / <code>senha123</code> · Login de paciente (só e-mail):{" "}
-        <code>marina.bueno@example.com</code>
+        Ambiente de demonstração — os dados são fictícios.
         <br />
         <Link href="/termos">Termos de Uso</Link> · <Link href="/privacidade">Política de Privacidade</Link>
       </p>

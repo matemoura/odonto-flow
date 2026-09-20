@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../database/prisma.service";
+import { assertAgendamentoDoPaciente, assertPacienteDaClinica } from "../../common/scope/tenant-scope.util";
 import { CreateClinicalRecordDto } from "./dto/create-clinical-record.dto";
 import { UpsertOdontogramEntryDto } from "./dto/upsert-odontogram-entry.dto";
 import { UpsertPeriodontalEntryDto } from "./dto/upsert-periodontal-entry.dto";
@@ -29,6 +30,14 @@ export class ClinicalRecordsService {
 
   async create(clinicId: string, actorUserId: string, dto: CreateClinicalRecordDto) {
     const professional = await this.assertProfessional(clinicId, actorUserId);
+    await assertPacienteDaClinica(this.prisma, clinicId, dto.patientId);
+    if (dto.appointmentId) {
+      await assertAgendamentoDoPaciente(this.prisma, clinicId, dto.patientId, dto.appointmentId);
+    }
+
+    // O timestamp da assinatura é sempre o relógio do servidor, nunca algo que
+    // o cliente possa mandar — senão dava para forjar "assinado às 3h da manhã".
+    const now = new Date();
     return this.prisma.clinicalRecord.create({
       data: {
         clinicId,
@@ -37,6 +46,10 @@ export class ClinicalRecordsService {
         appointmentId: dto.appointmentId,
         type: dto.type,
         content: dto.content,
+        professionalSignature: dto.professionalSignature,
+        professionalSignedAt: dto.professionalSignature ? now : undefined,
+        patientSignature: dto.patientSignature,
+        patientSignedAt: dto.patientSignature ? now : undefined,
       },
     });
   }
@@ -59,6 +72,7 @@ export class ClinicalRecordsService {
 
   async upsertOdontogramEntry(clinicId: string, actorUserId: string, dto: UpsertOdontogramEntryDto) {
     await this.assertProfessional(clinicId, actorUserId);
+    await assertPacienteDaClinica(this.prisma, clinicId, dto.patientId);
     return this.prisma.odontogram.create({
       data: {
         clinicId,
@@ -91,6 +105,7 @@ export class ClinicalRecordsService {
   async upsertPeriodontalEntry(clinicId: string, actorUserId: string, dto: UpsertPeriodontalEntryDto) {
     await this.assertProfessional(clinicId, actorUserId);
     const { patientId, toothNumber, ...fields } = dto;
+    await assertPacienteDaClinica(this.prisma, clinicId, patientId);
     return this.prisma.periodontalEntry.create({
       data: { clinicId, patientId, toothNumber, ...fields, updatedBy: actorUserId },
     });
@@ -103,6 +118,10 @@ export class ClinicalRecordsService {
   async upsertAnamnesis(clinicId: string, actorUserId: string, dto: UpsertAnamnesisDto) {
     await this.assertProfessional(clinicId, actorUserId);
     const { patientId, treatmentConsent, imageUseConsent, ...fields } = dto;
+    // `Anamnesis.patientId` é único GLOBAL, então o upsert abaixo alcança a
+    // linha de qualquer clínica. Sem esta checagem ele devolvia (e regravava)
+    // o prontuário de paciente de outra clínica.
+    await assertPacienteDaClinica(this.prisma, clinicId, patientId);
 
     const existing = await this.prisma.anamnesis.findUnique({ where: { patientId } });
 
@@ -136,7 +155,8 @@ export class ClinicalRecordsService {
     });
   }
 
-  createTreatmentPlanOption(clinicId: string, dto: CreateTreatmentPlanOptionDto) {
+  async createTreatmentPlanOption(clinicId: string, dto: CreateTreatmentPlanOptionDto) {
+    await assertPacienteDaClinica(this.prisma, clinicId, dto.patientId);
     return this.prisma.treatmentPlanOption.create({
       data: { clinicId, ...dto },
       include: { professional: { select: { user: { select: { name: true } } } } },

@@ -122,6 +122,95 @@
   flex-wrap: wrap;
 }
 
+/* --- liberação de integrações por clínica ---------------------------------
+   Um cartão por clínica em vez de uma matriz clínica × integração: a matriz
+   fica ilegível já com cinco colunas e um campo de texto em cada célula, e
+   some no celular. O cartão mantém a pergunta que importa junto da resposta —
+   "o que esta clínica tem?".
+   -------------------------------------------------------------------------- */
+.cartaoClinica {
+  padding: var(--s5);
+  border-radius: var(--r-lg);
+  background: var(--gaze);
+}
+
+.cartaoClinicaTopo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--linha);
+}
+
+.cartaoClinicaNome {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.listaIntegracoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* O interruptor à esquerda e o provedor à direita enquanto couber; abaixo de
+   ~560px viram duas linhas em vez de espremer o campo de texto. */
+.linhaIntegracao {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 10px 18px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--linha);
+}
+.linhaIntegracao:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.linhaIntegracaoChave {
+  display: flex;
+  /* `flex-start`, não `start`: em flex o `start` tem suporte irregular. A caixa
+     alinha pelo topo porque o rótulo tem duas linhas e ela ficaria no meio do
+     parágrafo. */
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* O <span> de dentro é o rótulo + a explicação, uma sob a outra. */
+.linhaIntegracaoChave > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.linhaIntegracaoChave .dica {
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.linhaIntegracaoProvedor {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+/* Nome de provedor é curto ("mock", "autentique"); um campo da largura da
+   coluna prometeria um texto longo que nunca vem. */
+.linhaIntegracaoProvedor .input {
+  max-width: 240px;
+}
+
+/* Um aviso de linha não deve empurrar a linha seguinte para longe. */
+.linhaIntegracao .erro,
+.linhaIntegracao .sucesso {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
 .erro {
   padding: 10px 12px;
   border-radius: var(--r-sm);

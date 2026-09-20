@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { diskStorage } from "multer";
 import { randomUUID } from "node:crypto";
 
@@ -20,6 +20,23 @@ export function documentFileFilter(
     return;
   }
   callback(null, true);
+}
+
+/**
+ * Extensão do arquivo enviado, reduzida ao que é seguro pôr num caminho.
+ *
+ * O nome original NÃO pode entrar no caminho. `file.originalname` vem do
+ * cabeçalho multipart e o multer não sanitiza nada: `"../../../etc/x.png"`
+ * chega inteiro aqui, e o prefixo UUID não protege — `path.join` resolve o
+ * `..` e o arquivo sai do diretório da clínica. O nome que a pessoa vê já é
+ * guardado em `Document.fileName`, no banco, onde não vira caminho.
+ *
+ * Devolve string vazia quando não há extensão reconhecível; arquivo sem
+ * extensão é servido pelo `Content-Type` guardado, então não se perde nada.
+ */
+export function extensaoSegura(originalname: string): string {
+  const extensao = extname(originalname).toLowerCase();
+  return /^\.[a-z0-9]{1,8}$/.test(extensao) ? extensao : "";
 }
 
 /**
@@ -45,7 +62,7 @@ export function documentStorage() {
       callback(null, dir);
     },
     filename: (_req, file, callback) => {
-      callback(null, `${randomUUID()}-${file.originalname}`);
+      callback(null, `${randomUUID()}${extensaoSegura(file.originalname)}`);
     },
   });
 }

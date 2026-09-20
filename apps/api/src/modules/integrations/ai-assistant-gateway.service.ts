@@ -1,22 +1,20 @@
 import { Injectable, NotImplementedException } from "@nestjs/common";
 import { AiAssistantProvider, ChatMessage, MockAiAssistantProvider } from "@odontoflow/integration-ai-assistant";
-import { PrismaService } from "../../database/prisma.service";
+import { IntegrationsConfigService } from "./integrations-config.service";
 
 @Injectable()
 export class AiAssistantGatewayService {
   private readonly mock = new MockAiAssistantProvider();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly config: IntegrationsConfigService) {}
 
   async resolveProvider(clinicId: string): Promise<AiAssistantProvider> {
-    const config = await this.prisma.integrationConfig.findUnique({
-      where: { clinicId_kind: { clinicId, kind: "AI_ASSISTANT" } },
-    });
-    if (!config || config.providerName === "mock") {
+    const { providerName } = await this.config.requireReleased(clinicId, "AI_ASSISTANT");
+    if (providerName === "mock") {
       return this.mock;
     }
     throw new NotImplementedException(
-      `Provedor de IA "${config.providerName}" ainda não está implementado — plugue Claude/OpenAI/Gemini em AiAssistantGatewayService.`,
+      `Provedor de IA "${providerName}" ainda não está implementado — plugue Claude/OpenAI/Gemini em AiAssistantGatewayService.`,
     );
   }
 

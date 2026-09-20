@@ -38,6 +38,14 @@ export class UpsertAnamnesisDto {
 
   @IsOptional()
   @IsBoolean()
+  hasChronicKidneyDisease?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  hasCancerOrImmunosuppression?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   hasAllergies?: boolean;
 
   @IsOptional()

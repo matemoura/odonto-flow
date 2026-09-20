@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { refreshStaffSession } from "./lib/api";
-import { SESSION_COOKIE_NAMES, STAFF_ACCESS_COOKIE_MAX_AGE } from "./lib/session";
+import { SESSION_COOKIE_BASE, SESSION_COOKIE_NAMES, STAFF_ACCESS_COOKIE_MAX_AGE } from "./lib/session";
 
 /**
  * Renova a sessão da equipe sozinha, sem deslogar no meio do expediente: o
@@ -24,10 +24,11 @@ export async function middleware(request: NextRequest) {
 
     request.cookies.set(SESSION_COOKIE_NAMES.staffToken, accessToken);
     const response = NextResponse.next({ request });
+    // Reusa SESSION_COOKIE_BASE em vez de repetir as opções: escritas à mão,
+    // esta perdia o `secure`, e como a renovação acontece no máximo 1h depois
+    // do login, TODO usuário de produção acabava com o token sem a flag.
     response.cookies.set(SESSION_COOKIE_NAMES.staffToken, accessToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
+      ...SESSION_COOKIE_BASE,
       maxAge: STAFF_ACCESS_COOKIE_MAX_AGE,
     });
     return response;

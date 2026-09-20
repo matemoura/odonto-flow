@@ -14,6 +14,7 @@ import { ClinicalRecordsModule } from "./modules/clinical-records/clinical-recor
 import { BudgetsModule } from "./modules/budgets/budgets.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { CertificatesModule } from "./modules/certificates/certificates.module";
+import { PrescriptionsModule } from "./modules/prescriptions/prescriptions.module";
 import { PlatformAdminModule } from "./modules/platform-admin/platform-admin.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { DocumentsModule } from "./modules/documents/documents.module";
@@ -43,6 +44,7 @@ import { SignupModule } from "./modules/signup/signup.module";
     BudgetsModule,
     InventoryModule,
     CertificatesModule,
+    PrescriptionsModule,
     PlatformAdminModule,
     DashboardModule,
     DocumentsModule,

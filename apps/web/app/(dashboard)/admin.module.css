@@ -77,6 +77,15 @@
   font-weight: 600;
 }
 
+/* Título com um selo de estado ao lado. `baseline` e não `center`: o selo é
+   menor que o título e alinhado pelo meio ele parece flutuar acima da palavra. */
+.tituloComSelo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
 /* Texto de apoio abaixo de um campo: explica a consequência da escolha sem
    competir com o rótulo. */
 .dica {
@@ -232,4 +241,128 @@
   background: var(--menta);
   color: #1e4638;
   font-size: 12.5px;
+}
+
+/* --- linha do tempo do prontuário ------------------------------------------
+   Registros em ordem, do mais recente para o mais antigo. Lista e não tabela:
+   o conteúdo é texto corrido de tamanho imprevisível, e tabela obrigaria a
+   truncar justamente o que importa ler.
+   -------------------------------------------------------------------------- */
+.linhaDoTempo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.registro {
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--branco);
+  border: 1px solid var(--linha);
+}
+
+.registroTopo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* `pre-wrap` preserva as quebras de linha que o dentista digitou; `anywhere`
+   impede que uma palavra longa (nome de medicamento, código) estoure o cartão. */
+.registroTexto {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Selo das assinaturas colhidas na conclusão do atendimento — miniatura do
+   traço + quem assinou e quando, para o dentista conferir sem abrir mais nada. */
+.assinaturasRegistro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--linha);
+}
+
+.assinaturaSelo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.assinaturaSelo img {
+  width: 140px;
+  height: 56px;
+  object-fit: contain;
+  border: 1px solid var(--linha);
+  border-radius: var(--r-sm);
+  background: var(--gaze);
+}
+
+/* Linha de botões de um formulário dentro de um bloco. */
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Bloco de acesso ao portal dentro do cadastro do paciente. Ocupa a linha
+   inteira do grid do formulário (ver `.form > *:not(.campo)`). */
+.portalPaciente {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--linha);
+  border-radius: var(--r-md);
+  background: var(--branco);
+}
+.portalPaciente .dica {
+  margin: 0;
+}
+
+/* Navegação entre páginas de uma listagem. */
+.paginacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.paginacao .dica {
+  margin: 0;
+}
+
+/* Condição de pagamento na aprovação do orçamento. Ocupa o lugar dos botões
+   em vez de abrir um diálogo: o valor do orçamento continua à vista logo
+   acima, que é o número em que a decisão se apoia. */
+.condicaoDePagamento {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--branco);
+  border: 1px solid var(--linha);
+}
+.condicaoDePagamento .dica {
+  margin: 0;
+}
+
+/* Total de um período, logo abaixo dos cartões por pessoa. */
+.totalDoPeriodo {
+  margin: 0;
+  font-size: 13.5px;
+  text-align: right;
 }

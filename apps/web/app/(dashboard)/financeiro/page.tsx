@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCashFlowSummary, getStaffProfessionals, getTransactions, PAYMENT_METHOD_LABEL } from "../../../lib/api";
+import {
+  getCashFlowSummary,
+  getStaffProfessionals,
+  getTransactions,
+  INVOICE_STATUS_LABEL,
+  PAYMENT_METHOD_LABEL,
+  type InvoiceStatus,
+} from "../../../lib/api";
+import { formatarData } from "../../../lib/datas";
+import { fusoDaClinica } from "../../../lib/fuso-servidor";
 import { getStaffSession } from "../../../lib/session";
 import { NovaTransacaoForm } from "./NovaTransacaoForm";
 import { MarcarPagoButton } from "./MarcarPagoButton";
@@ -29,6 +38,7 @@ export default async function FinanceiroPage({
 }) {
   const session = await getStaffSession();
   if (!session) redirect("/entrar");
+  const fuso = await fusoDaClinica(session.clinicSlug);
 
   const defaults = currentMonthRange();
   const { from: fromParam, to: toParam } = await searchParams;
@@ -111,6 +121,9 @@ export default async function FinanceiroPage({
         <a href={exportUrl} className="odontoflow-btn odontoflow-btn--secondary odontoflow-btn--sm">
           Exportar Excel do período
         </a>
+        <Link href="/financeiro/comissoes" className="odontoflow-btn odontoflow-btn--ghost odontoflow-btn--sm">
+          Comissões do período
+        </Link>
         <Link href="/financeiro/cartao" className="odontoflow-btn odontoflow-btn--ghost odontoflow-btn--sm">
           Taxa e prazo do cartão
         </Link>
@@ -141,7 +154,7 @@ export default async function FinanceiroPage({
             <tbody>
               {transactions.map((t) => (
                 <tr key={t.id}>
-                  <td>{new Intl.DateTimeFormat("pt-BR").format(new Date(t.dueDate))}</td>
+                  <td>{formatarData(t.dueDate, fuso)}</td>
                   <td>{t.type === "INCOME" ? "Receita" : "Despesa"}</td>
                   <td>
                     {t.category}
@@ -161,10 +174,10 @@ export default async function FinanceiroPage({
                     {t.settledAt ? (
                       new Date(t.settledAt) > new Date() ? (
                         <span className="chip chip--estatico chip--areia">
-                          {new Intl.DateTimeFormat("pt-BR").format(new Date(t.settledAt))}
+                          {formatarData(t.settledAt, fuso)}
                         </span>
                       ) : (
-                        new Intl.DateTimeFormat("pt-BR").format(new Date(t.settledAt))
+                        formatarData(t.settledAt, fuso)
                       )
                     ) : (
                       "—"
@@ -178,8 +191,15 @@ export default async function FinanceiroPage({
                       {!t.paidAt ? <MarcarPagoButton transactionId={t.id} /> : null}
                       {t.paidAt && t.type === "INCOME" ? (
                         t.invoice ? (
-                          <span className="chip chip--estatico">
-                            NF-e {t.invoice.status === "ISSUED" ? "emitida" : t.invoice.status.toLowerCase()}
+                          <span
+                            className={
+                              t.invoice.status === "FAILED"
+                                ? "chip chip--estatico chip--alerta"
+                                : "chip chip--estatico"
+                            }
+                          >
+                            NF-e{" "}
+                            {INVOICE_STATUS_LABEL[t.invoice.status as InvoiceStatus] ?? t.invoice.status}
                           </span>
                         ) : (
                           <IssueInvoiceButton transactionId={t.id} />

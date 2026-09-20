@@ -1,5 +1,5 @@
 import * as argon2 from "argon2";
-import { PrismaClient, Role } from "../generated/client";
+import { IntegrationKind, PrismaClient, Role } from "../generated/client";
 
 const prisma = new PrismaClient();
 
@@ -340,6 +340,136 @@ async function main() {
     });
   }
 
+  // Catálogo de medicamentos (global, sem clinicId) + receita padrão por
+  // serviço. Posologias e avisos de risco vêm de Andrade ED (org.).
+  // Terapêutica Medicamentosa em Odontologia. 3.ed. Artes Médicas, 2014 —
+  // não é bula, é o protocolo do capítulo correspondente resumido em texto
+  // próprio; o profissional confere a bula do medicamento antes de prescrever.
+  const medicamentosSeed = [
+    { name: "Dipirona sódica", class: "ANALGESIC" as const, defaultPosology: "500 mg a 1 g (20-40 gotas), VO, a cada 4 h" },
+    { name: "Paracetamol", class: "ANALGESIC" as const, defaultPosology: "500-750 mg, VO, a cada 6 h (máx. 3 doses/dia)" },
+    { name: "Paracetamol + Codeína", class: "ANALGESIC" as const, defaultPosology: "500 mg + 30 mg, VO, a cada 6 h" },
+    { name: "Tramadol", class: "ANALGESIC" as const, defaultPosology: "50 mg, VO, a cada 8 h" },
+    { name: "Ibuprofeno", class: "NSAID" as const, defaultPosology: "200-600 mg, VO, a cada 6-8 h" },
+    { name: "Diclofenaco potássico", class: "NSAID" as const, defaultPosology: "50 mg, VO, a cada 8-12 h" },
+    { name: "Nimesulida", class: "NSAID" as const, defaultPosology: "100 mg, VO, a cada 12 h" },
+    { name: "Cetorolaco", class: "NSAID" as const, defaultPosology: "10 mg, via sublingual, a cada 8 h" },
+    { name: "Cetoprofeno", class: "NSAID" as const, defaultPosology: "150 mg, VO, a cada 24 h" },
+    { name: "Piroxicam", class: "NSAID" as const, defaultPosology: "20 mg, VO, a cada 24 h" },
+    { name: "Etoricoxibe", class: "NSAID" as const, defaultPosology: "60-90 mg, VO, a cada 24 h" },
+    { name: "Dexametasona", class: "CORTICOSTEROID" as const, defaultPosology: "4 mg (1 comprimido), VO, dose única 1 h antes do procedimento" },
+    { name: "Betametasona", class: "CORTICOSTEROID" as const, defaultPosology: "4 mg (2 comprimidos de 2 mg), VO, dose única 1 h antes do procedimento" },
+    { name: "Amoxicilina", class: "ANTIBIOTIC" as const, defaultPosology: "500 mg, VO, a cada 8 h, por 7 dias" },
+    { name: "Amoxicilina + Clavulanato de potássio", class: "ANTIBIOTIC" as const, defaultPosology: "500 mg + 125 mg, VO, a cada 8 h" },
+    { name: "Penicilina V", class: "ANTIBIOTIC" as const, defaultPosology: "500 mg, VO, a cada 6 h" },
+    { name: "Metronidazol", class: "ANTIBIOTIC" as const, defaultPosology: "250-400 mg, VO, a cada 8-12 h" },
+    { name: "Clindamicina", class: "ANTIBIOTIC" as const, defaultPosology: "300 mg, VO, a cada 8 h" },
+    { name: "Azitromicina", class: "ANTIBIOTIC" as const, defaultPosology: "500 mg, VO, a cada 24 h, por 3 dias" },
+    { name: "Claritromicina", class: "ANTIBIOTIC" as const, defaultPosology: "500 mg, VO, a cada 12 h" },
+    { name: "Cefalexina", class: "ANTIBIOTIC" as const, defaultPosology: "500 mg, VO, a cada 6 h" },
+    { name: "Doxiciclina", class: "ANTIBIOTIC" as const, defaultPosology: "100 mg, VO, a cada 24 h" },
+    { name: "Digluconato de clorexidina 0,12%", class: "ANTISEPTIC" as const, defaultPosology: "Bochecho com 15 mL, sem diluir, 2x ao dia" },
+  ];
+  const medicamentoIdPorNome = new Map<string, string>();
+  for (const medicamento of medicamentosSeed) {
+    const existing = await prisma.medication.findFirst({ where: { name: medicamento.name } });
+    const record = existing ?? (await prisma.medication.create({ data: medicamento }));
+    medicamentoIdPorNome.set(medicamento.name, record.id);
+  }
+
+  // AINEs e coxibes se repetem muito entre hipertensão/cardiopatia/renal —
+  // são o mesmo motivo (retenção de sódio, efeito na filtração renal, risco
+  // cardiovascular) descrito em capítulos diferentes do livro.
+  const AINES_E_COXIBES = [
+    "Ibuprofeno",
+    "Diclofenaco potássico",
+    "Nimesulida",
+    "Cetorolaco",
+    "Cetoprofeno",
+    "Piroxicam",
+    "Etoricoxibe",
+  ];
+  const avisosDeRiscoSeed: {
+    medication: string;
+    riskFlag: "HYPERTENSION" | "DIABETES" | "HEART_CONDITION" | "BLEEDING_DISORDER" | "PREGNANT" | "CHRONIC_KIDNEY_DISEASE" | "CANCER_OR_IMMUNOSUPPRESSION";
+    severity: "AVOID" | "CAUTION";
+    note: string;
+  }[] = [
+    ...AINES_E_COXIBES.map((name) => ({
+      medication: name,
+      riskFlag: "HYPERTENSION" as const,
+      severity: (name === "Etoricoxibe" ? "AVOID" : "CAUTION") as const,
+      note: "Retém sódio e água, pode elevar a pressão arterial. Preferir dipirona, paracetamol ou corticosteroide em dose única.",
+    })),
+    ...AINES_E_COXIBES.map((name) => ({
+      medication: name,
+      riskFlag: "HEART_CONDITION" as const,
+      severity: "AVOID" as const,
+      note: "Associado a maior risco cardiovascular em cardiopatas (isquemia, arritmia). Preferir dipirona, paracetamol ou corticosteroide.",
+    })),
+    ...AINES_E_COXIBES.map((name) => ({
+      medication: name,
+      riskFlag: "CHRONIC_KIDNEY_DISEASE" as const,
+      severity: "AVOID" as const,
+      note: "Pode reduzir ainda mais a função renal e interagir com anti-hipertensivos/diuréticos.",
+    })),
+    ...AINES_E_COXIBES.map((name) => ({
+      medication: name,
+      riskFlag: "PREGNANT" as const,
+      severity: "AVOID" as const,
+      note: "Evitar na gestação, sobretudo no último trimestre (fechamento precoce do ducto arterial, sangramento, prolongamento do parto).",
+    })),
+    ...AINES_E_COXIBES.map((name) => ({
+      medication: name,
+      riskFlag: "BLEEDING_DISORDER" as const,
+      severity: "CAUTION" as const,
+      note: "Pode potencializar anticoagulantes (ex.: varfarina) e interferir na agregação plaquetária.",
+    })),
+    { medication: "Tramadol", riskFlag: "PREGNANT", severity: "AVOID", note: "Categoria C/D — risco de anomalias congênitas e depressão respiratória neonatal com uso prolongado." },
+    { medication: "Doxiciclina", riskFlag: "PREGNANT", severity: "AVOID", note: "Tetraciclinas contraindicadas na gestação (manchas e hipoplasia do esmalte, alterações ósseas fetais)." },
+    { medication: "Doxiciclina", riskFlag: "CHRONIC_KIDNEY_DISEASE", severity: "AVOID", note: "Potencial nefrotóxico — evitar." },
+    { medication: "Cefalexina", riskFlag: "CHRONIC_KIDNEY_DISEASE", severity: "AVOID", note: "Cefalosporinas têm potencial nefrotóxico em uso prolongado — evitar quando possível." },
+    { medication: "Claritromicina", riskFlag: "PREGNANT", severity: "CAUTION", note: "Dados de segurança na gestação ainda insuficientes — preferir penicilinas." },
+    { medication: "Azitromicina", riskFlag: "PREGNANT", severity: "CAUTION", note: "Dados de segurança na gestação ainda insuficientes — preferir penicilinas." },
+    { medication: "Azitromicina", riskFlag: "HEART_CONDITION", severity: "CAUTION", note: "Pode prolongar o intervalo QT e causar arritmia em cardiopatas — avaliar com o cardiologista antes de prescrever." },
+    { medication: "Dipirona sódica", riskFlag: "PREGNANT", severity: "CAUTION", note: "Evitar no 1º trimestre e nos últimos 3 meses de gestação; no 2º trimestre, só após avaliação médica de risco/benefício." },
+    { medication: "Dexametasona", riskFlag: "DIABETES", severity: "CAUTION", note: "Pode elevar a glicemia — preferir dose única de curta duração e monitorar." },
+    { medication: "Betametasona", riskFlag: "DIABETES", severity: "CAUTION", note: "Pode elevar a glicemia — preferir dose única de curta duração e monitorar." },
+    { medication: "Dexametasona", riskFlag: "CANCER_OR_IMMUNOSUPPRESSION", severity: "CAUTION", note: "Pode reduzir ainda mais a resposta imune — avaliar com o oncologista antes de usar." },
+    { medication: "Betametasona", riskFlag: "CANCER_OR_IMMUNOSUPPRESSION", severity: "CAUTION", note: "Pode reduzir ainda mais a resposta imune — avaliar com o oncologista antes de usar." },
+    { medication: "Amoxicilina", riskFlag: "CHRONIC_KIDNEY_DISEASE", severity: "CAUTION", note: "Em hemodiálise, pode ser necessário ajustar o intervalo entre doses (8/12/24 h) conforme a taxa de filtração glomerular — avaliar com o nefrologista." },
+    { medication: "Metronidazol", riskFlag: "BLEEDING_DISORDER", severity: "CAUTION", note: "Pode potencializar o efeito de anticoagulantes orais." },
+    { medication: "Paracetamol", riskFlag: "BLEEDING_DISORDER", severity: "CAUTION", note: "Uso concomitante com varfarina pode aumentar o efeito anticoagulante — evitar uso prolongado." },
+  ];
+  for (const aviso of avisosDeRiscoSeed) {
+    const medicationId = medicamentoIdPorNome.get(aviso.medication)!;
+    await prisma.medicationRiskNote.upsert({
+      where: { medicationId_riskFlag: { medicationId, riskFlag: aviso.riskFlag } },
+      update: { severity: aviso.severity, note: aviso.note },
+      create: { medicationId, riskFlag: aviso.riskFlag, severity: aviso.severity, note: aviso.note },
+    });
+  }
+
+  // Receita padrão por serviço — o que já vem pré-pronto na hora de emitir
+  // (editável na tela do serviço, em /servicos/[id]).
+  const receitaPorProcedimentoSeed = [
+    { procedimento: "Restauração", medicamento: "Dipirona sódica", posology: "500 mg a 1 g, VO, a cada 4 h", instructions: "Tomar por até 24 h após o procedimento, se houver dor." },
+    { procedimento: "Endodontia (canal)", medicamento: "Dipirona sódica", posology: "500 mg a 1 g, VO, a cada 4 h", instructions: "Tomar por 24-48 h após o procedimento, se houver dor." },
+    { procedimento: "Profilaxia + raspagem", medicamento: "Digluconato de clorexidina 0,12%", posology: "Bochecho com 15 mL, sem diluir, a cada 12 h", instructions: "Usar por 1 semana, sem engolir." },
+  ];
+  for (const [ordem, item] of receitaPorProcedimentoSeed.entries()) {
+    const procedureId = (
+      await prisma.procedure.findFirstOrThrow({ where: { clinicId: clinic.id, name: item.procedimento } })
+    ).id;
+    const medicationId = medicamentoIdPorNome.get(item.medicamento)!;
+    const existing = await prisma.procedurePrescriptionItem.findFirst({ where: { procedureId, medicationId } });
+    if (!existing) {
+      await prisma.procedurePrescriptionItem.create({
+        data: { procedureId, medicationId, posology: item.posology, instructions: item.instructions, order: ordem },
+      });
+    }
+  }
+
   // Fase 2 — comissionamento (30% para a Dra. Ana Prado) e alguns lançamentos de exemplo.
   await prisma.commissionRule.upsert({
     where: { professionalId: professionals[0].id },
@@ -522,6 +652,30 @@ async function main() {
       name: "Renato Alves",
       phone: "+55 11 94444-5555",
     },
+  });
+
+  // Liberação de integrações — decisão do dono da plataforma, não da clínica.
+  // A Vila Nova recebe as cinco (é a clínica em que tudo do demo funciona); a
+  // Zona Sul recebe só duas, de propósito, para o demo mostrar que a liberação
+  // é por clínica e que o resto some da tela do dono dela.
+  const liberacoes: { clinicId: string; kinds: IntegrationKind[] }[] = [
+    { clinicId: clinic.id, kinds: ["WHATSAPP", "AI_ASSISTANT", "NFE", "E_SIGNATURE", "CREDIT_SCORE"] },
+    { clinicId: clinicSul.id, kinds: ["WHATSAPP", "AI_ASSISTANT"] },
+  ];
+  for (const { clinicId, kinds } of liberacoes) {
+    for (const kind of kinds) {
+      await prisma.integrationConfig.upsert({
+        where: { clinicId_kind: { clinicId, kind } },
+        update: { enabled: true },
+        create: { clinicId, kind, providerName: "mock", enabled: true },
+      });
+    }
+  }
+  // Número de demonstração, não de uma clínica real — trocar antes de qualquer
+  // uso com provedor de WhatsApp de verdade.
+  await prisma.clinic.update({
+    where: { id: clinic.id },
+    data: { whatsappPhone: "+5511999990000" },
   });
 
   console.log(`Seed concluído. Clínica demo: /agendar/${clinic.slug}`);

@@ -4,10 +4,13 @@ import { FormEvent, useState } from "react";
 import { Button } from "@odontoflow/ui";
 import type { CreditScoreQuery } from "../../../../lib/api";
 import s from "../../admin.module.css";
+import { formatarData } from "../../../../lib/datas";
+import { useFusoDaClinica } from "../../FusoDaClinica";
 
 const RISK_LABEL: Record<string, string> = { low: "baixo risco", medium: "risco médio", high: "alto risco" };
 
 export function CreditScoreSection({ patientId, initial }: { patientId: string; initial: CreditScoreQuery }) {
+  const fuso = useFusoDaClinica();
   const [result, setResult] = useState(initial);
   const [consent, setConsent] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export function CreditScoreSection({ patientId, initial }: { patientId: string; 
       {result ? (
         <p style={{ fontSize: 13 }}>
           Última consulta: <strong>{result.score}</strong> ({RISK_LABEL[result.riskBand]}) em{" "}
-          {new Intl.DateTimeFormat("pt-BR").format(new Date(result.queriedAt))}
+          {formatarData(result.queriedAt, fuso)}
         </p>
       ) : (
         <p style={{ fontSize: 12, color: "var(--tinta-55)" }}>Nenhuma consulta feita ainda.</p>

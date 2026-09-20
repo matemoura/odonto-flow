@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../database/prisma.service";
 import type { AuthenticatedUser } from "../../common/decorators/current-user.decorator";
 import { ehDentista, SEM_PROFISSIONAL } from "../../common/scope/dentist-scope.util";
+import { limitesDaPagina, montarPagina } from "../../common/paginacao";
+
+/** Acima disto, um `<select>` deixa de ser usável e a clínica precisa de busca. */
+const TETO_DO_SELETOR = 500;
 import { CreatePatientDto } from "./dto/create-patient.dto";
 import { UpdatePatientDto } from "./dto/update-patient.dto";
 
@@ -13,17 +17,57 @@ export class PatientsService {
    * `professionalId` restringe aos pacientes que aquele profissional atendeu —
    * é o escopo do dentista. Nulo = sem restrição (admin, recepção).
    */
-  findAll(clinicId: string, search?: string, professionalId?: string | null) {
-    return this.prisma.patient.findMany({
+  async findAll(
+    clinicId: string,
+    search?: string,
+    professionalId?: string | null,
+    paginacao: { page?: number; pageSize?: number } = {},
+  ) {
+    const where = {
+      clinicId,
+      ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+      ...(professionalId ? { appointments: { some: { professionalId } } } : {}),
+    };
+    const { skip, take, page, pageSize } = limitesDaPagina(paginacao.page, paginacao.pageSize);
+
+    // `count` junto: sem o total a tela não tem como dizer "1 de 12" nem saber
+    // se existe próxima página — e o usuário não descobre que há mais gente.
+    const [itens, total] = await Promise.all([
+      this.prisma.patient.findMany({ where, orderBy: { name: "asc" }, skip, take }),
+      this.prisma.patient.count({ where }),
+    ]);
+
+    return montarPagina(itens, total, page, pageSize);
+  }
+
+  /**
+   * Lista enxuta para preencher seletor de paciente (agendar, CRM, indicação,
+   * transferência). Aqui a paginação atrapalharia: um `<select>` com 25 de 900
+   * pacientes esconde a pessoa que se está procurando.
+   *
+   * O que a torna segura é o `select` de dois campos — o problema de carregar
+   * "todos os pacientes" era trazer a FICHA inteira de cada um (CPF, RG,
+   * endereço, contato de emergência). Id e nome de 2 mil pacientes são alguns
+   * poucos KB.
+   *
+   * O teto ainda existe: acima dele a clínica precisa de um seletor com busca,
+   * e `truncado` avisa a tela para dizer isso em vez de esconder gente.
+   */
+  async listarParaSelecao(clinicId: string, professionalId?: string | null) {
+    const itens = await this.prisma.patient.findMany({
       where: {
         clinicId,
-        ...(search
-          ? { name: { contains: search, mode: "insensitive" as const } }
-          : {}),
         ...(professionalId ? { appointments: { some: { professionalId } } } : {}),
       },
+      select: { id: true, name: true },
       orderBy: { name: "asc" },
+      take: TETO_DO_SELETOR + 1,
     });
+
+    return {
+      itens: itens.slice(0, TETO_DO_SELETOR),
+      truncado: itens.length > TETO_DO_SELETOR,
+    };
   }
 
   async findOne(clinicId: string, id: string, professionalId?: string | null) {
@@ -69,12 +113,23 @@ export class PatientsService {
   }
 
   async update(clinicId: string, id: string, dto: UpdatePatientDto) {
-    await this.findOne(clinicId, id);
+    const atual = await this.findOne(clinicId, id);
+    const { consentLGPD, ...campos } = dto;
+
     return this.prisma.patient.update({
       where: { id },
       data: {
-        ...dto,
+        ...campos,
         birthDate: dto.birthDate ? new Date(dto.birthDate) : undefined,
+        // Não sobrescreve a data original a cada salvamento: o que importa
+        // juridicamente é QUANDO o paciente consentiu, não quando alguém
+        // reabriu o cadastro. `false` revoga.
+        consentLGPDAt:
+          consentLGPD === undefined
+            ? undefined
+            : consentLGPD
+              ? (atual.consentLGPDAt ?? new Date())
+              : null,
       },
     });
   }

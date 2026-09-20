@@ -46,7 +46,11 @@ export function ListaDeConsultas({
             </span>
           </span>
           {item.source === "public-booking" ? <span className="chip chip--estatico">Veio do link</span> : null}
-          <AppointmentStatusButton appointmentId={item.id} currentStatus={item.status} />
+          <AppointmentStatusButton
+            appointmentId={item.id}
+            patientId={item.patient.id}
+            currentStatus={item.status}
+          />
         </li>
       ))}
     </ul>

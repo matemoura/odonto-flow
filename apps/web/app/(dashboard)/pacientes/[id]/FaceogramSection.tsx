@@ -6,10 +6,15 @@ import { Button } from "@odontoflow/ui";
 import type { FacialPlanning } from "../../../../lib/api";
 import { FaceogramCanvas, type Stroke } from "./FaceogramCanvas";
 import s from "../../admin.module.css";
+import { formatarData } from "../../../../lib/datas";
+import { useFusoDaClinica } from "../../FusoDaClinica";
+import { FalhaAoCarregar } from "./FalhaAoCarregar";
 
-export function FaceogramSection({ patientId, plannings }: { patientId: string; plannings: FacialPlanning[] }) {
+export function FaceogramSection({ patientId, plannings }: { patientId: string; plannings: FacialPlanning[] | null }) {
+  const fuso = useFusoDaClinica();
   const router = useRouter();
-  const latest = plannings[0] ?? null;
+  const versoes = plannings ?? [];
+  const latest = versoes[0] ?? null;
   const [viewing, setViewing] = useState<FacialPlanning | null>(null);
   const [pendingDocumentId, setPendingDocumentId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -76,16 +81,16 @@ export function FaceogramSection({ patientId, plannings }: { patientId: string; 
         </p>
       ) : null}
 
-      {plannings.length > 0 ? (
+      {versoes.length > 0 ? (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {plannings.map((p) => (
+          {versoes.map((p) => (
             <Button
               key={p.id}
               variant={viewing?.id === p.id ? "primary" : "ghost"}
               className="odontoflow-btn--sm"
               onClick={() => setViewing(viewing?.id === p.id ? null : p)}
             >
-              Versão {p.version} ({new Intl.DateTimeFormat("pt-BR").format(new Date(p.createdAt))})
+              Versão {p.version} ({formatarData(p.createdAt, fuso)})
             </Button>
           ))}
         </div>
@@ -104,6 +109,8 @@ export function FaceogramSection({ patientId, plannings }: { patientId: string; 
           onSave={handleSave}
           saving={saving}
         />
+      ) : plannings === null ? (
+        <FalhaAoCarregar oQue="o faceograma" />
       ) : (
         <p className={s.vazio}>Nenhuma foto enviada ainda.</p>
       )}

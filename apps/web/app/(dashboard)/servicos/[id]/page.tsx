@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { ApiError, getInventoryItems, getProcedure, type InventoryItem } from "../../../../lib/api";
+import { ApiError, getInventoryItems, getMedications, getProcedure, type InventoryItem, type Medication } from "../../../../lib/api";
 import { getStaffSession } from "../../../../lib/session";
 import { ServicoDetail } from "./ServicoDetail";
 import s from "../../admin.module.css";
@@ -32,10 +32,17 @@ export default async function ServicoPage({ params }: { params: Promise<{ id: st
     inventoryItems = [];
   }
 
+  let medications: Medication[];
+  try {
+    medications = await getMedications(session.clinicSlug, session.token);
+  } catch {
+    medications = [];
+  }
+
   return (
     <div className={s.pagina}>
       <h1 className={s.titulo}>{procedure.name}</h1>
-      <ServicoDetail procedure={procedure} inventoryItems={inventoryItems} />
+      <ServicoDetail procedure={procedure} inventoryItems={inventoryItems} medications={medications} />
     </div>
   );
 }

@@ -83,6 +83,20 @@ export class FinanceController {
     return this.finance.listCommissionEntries(clinicId, from, to);
   }
 
+  /**
+   * Fechamento do período: quanto cada profissional tem a receber.
+   * Só admin — quanto um colega ganhou não é assunto da recepção.
+   */
+  @Get("commission-report")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  getCommissionReport(
+    @CurrentTenant() clinicId: string,
+    @Query("from") from: string,
+    @Query("to") to: string,
+  ) {
+    return this.finance.getCommissionReport(clinicId, from, to);
+  }
+
   @Get("transactions/:id/invoice")
   getInvoice(@CurrentTenant() clinicId: string, @Param("id") id: string) {
     return this.invoices.getForTransaction(clinicId, id);

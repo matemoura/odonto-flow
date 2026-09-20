@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStaffSession } from "../../../../../../lib/session";
+import { API_URL } from "../../../../../../lib/api-url";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
 
 /**
  * BFF: mesmo motivo do export do financeiro — o link de download não pode

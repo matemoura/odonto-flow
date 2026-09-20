@@ -77,3 +77,24 @@ describe("OrthodonticsService.updateStepStatus", () => {
     });
   });
 });
+
+describe("OrthodonticsService.create — isolamento entre clínicas", () => {
+  it("não cria tratamento para paciente de outra clínica", async () => {
+    const prisma = fakePrisma({
+      professional: { findFirst: jest.fn().mockResolvedValue({ id: "prof-1" }) },
+      patient: { findFirst: jest.fn().mockResolvedValue(null) },
+    });
+    const service = new OrthodonticsService(prisma);
+
+    await expect(
+      service.create("clinic-1", {
+        patientId: "paciente-da-clinica-b",
+        professionalId: "prof-1",
+        applianceType: "METALLIC_BRACKETS",
+        startedAt: "2026-09-18",
+      }),
+    ).rejects.toThrow(NotFoundException);
+
+    expect(prisma.orthodonticTreatment.create).not.toHaveBeenCalled();
+  });
+});

@@ -1,0 +1,29 @@
+# Config as code do serviço web (apps/web) no Railway.
+#
+# Como usar: crie um segundo serviço no MESMO projeto Railway, a partir deste
+# mesmo repositório, e aponte "Config-as-code file path" pra
+# `railway.web.toml` (Root Directory continua a raiz do repo, mesmo motivo do
+# `railway.api.toml`: o build depende de pacotes do workspace).
+#
+# Veja RAILWAY.md para o passo a passo completo.
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm i -g corepack@latest && corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@odontoflow/web..."
+
+[deploy]
+startCommand = "pnpm --filter @odontoflow/web start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Variáveis de ambiente deste serviço (dashboard do Railway). Ver
+# `apps/web/.env.example` pro significado de cada uma:
+#
+#   NEXT_PUBLIC_API_URL   = URL pública do serviço da API no Railway (railway.api.toml)
+#   NEXT_PUBLIC_SENTRY_DSN = opcional
+#   SENTRY_DSN             = opcional (mesmo valor do de cima, sem o prefixo NEXT_PUBLIC_)
+#   PORT                   = não precisa setar: o Railway injeta sozinho e `next start` já respeita `process.env.PORT`
+#
+# `NEXT_PUBLIC_*` entra no bundle do navegador em BUILD TIME, não em runtime —
+# se mudar essa variável depois, é preciso rodar o build de novo (redeploy),
+# reiniciar sozinho não é suficiente.

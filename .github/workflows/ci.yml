@@ -31,6 +31,12 @@ jobs:
       # (ver infra/docker-compose.yml) para não colidir com um Postgres já
       # instalado na máquina do dev.
 
+      # O build do front recusa subir sem esta variável (ver lib/api-url.ts) —
+      # é justamente o que impede um deploy silenciosamente apontado para
+      # localhost. No CI o valor é só um placeholder: nada é chamado de fato,
+      # o build só precisa de uma URL válida para embutir no bundle.
+      NEXT_PUBLIC_API_URL: http://localhost:3333
+
     steps:
       - uses: actions/checkout@v4
 

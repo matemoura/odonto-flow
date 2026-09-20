@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import { AppointmentStatus } from "@odontoflow/db";
 import { SchedulingService } from "./scheduling.service";
 import { PrismaService } from "../../database/prisma.service";
 import { WhatsAppGatewayService } from "../integrations/whatsapp-gateway.service";
@@ -23,6 +24,7 @@ function fakePrisma(overrides: Record<string, unknown> = {}) {
     appointment: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
+      findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -82,7 +84,8 @@ describe("SchedulingService.createInternalAppointment", () => {
       service.createInternalAppointment("clinic-1", {
         patientId: "p1",
         professionalId: "prof-1",
-        startAt: "2026-09-10T13:00:00.000Z",
+        date: "2026-09-10",
+        time: "10:00",
       }),
     ).rejects.toThrow(NotFoundException);
   });
@@ -97,7 +100,8 @@ describe("SchedulingService.createInternalAppointment", () => {
       service.createInternalAppointment("clinic-1", {
         patientId: "p1",
         professionalId: "prof-1",
-        startAt: "2026-09-10T13:00:00.000Z",
+        date: "2026-09-10",
+        time: "10:00",
       }),
     ).rejects.toThrow(ConflictException);
   });
@@ -111,7 +115,8 @@ describe("SchedulingService.createInternalAppointment", () => {
     await service.createInternalAppointment("clinic-1", {
       patientId: "p1",
       professionalId: "prof-1",
-      startAt: "2026-09-10T13:00:00.000Z",
+      date: "2026-09-10",
+      time: "10:00",
     });
 
     const callArgs = (prisma.appointment.create as jest.Mock).mock.calls[0][0];
@@ -343,8 +348,10 @@ describe("SchedulingService.updateStatus", () => {
   it("notifica por WhatsApp só quando o status vira CONFIRMED", async () => {
     const prisma = fakePrisma();
     (prisma.appointment.findFirst as jest.Mock).mockResolvedValue({
-      id: "appt-1",
+      status: "SCHEDULED",
       startAt: new Date("2026-09-10T13:00:00.000Z"),
+      endAt: new Date("2026-09-10T13:40:00.000Z"),
+      professionalId: "prof-1",
       patient: { name: "Fulano", phone: "+5511900000000" },
       professional: { user: { name: "Dra. Ana" } },
     });
@@ -359,8 +366,10 @@ describe("SchedulingService.updateStatus", () => {
   it("não notifica quando o status vira COMPLETED", async () => {
     const prisma = fakePrisma();
     (prisma.appointment.findFirst as jest.Mock).mockResolvedValue({
-      id: "appt-1",
+      status: "FILLING_FORM",
       startAt: new Date("2026-09-10T13:00:00.000Z"),
+      endAt: new Date("2026-09-10T13:40:00.000Z"),
+      professionalId: "prof-1",
       patient: { name: "Fulano", phone: "+5511900000000" },
       professional: { user: { name: "Dra. Ana" } },
     });
@@ -414,5 +423,157 @@ describe("SchedulingService.createPublicAppointment — superfície de dados da 
     // Do profissional, só o nome.
     expect(args.select.professional.select.user.select).toEqual({ name: true });
     expect(JSON.stringify(args.select)).not.toContain("passwordHash");
+  });
+});
+
+/**
+ * O agendamento interno recebia um `startAt` ISO já montado pelo navegador de
+ * quem preenche — ou seja, no fuso da MÁQUINA dele. Recepcionista em home
+ * office noutro fuso, ou clínica em Manaus administrada de São Paulo, marcava
+ * a consulta com uma hora de diferença, e a API confiava. A rota pública já
+ * fazia certo; só a interna não.
+ */
+describe("SchedulingService.createInternalAppointment — hora no fuso da clínica", () => {
+  it("resolve 10:00 como 10:00 NA CLÍNICA, não no fuso de quem preencheu", async () => {
+    const prisma = fakePrisma();
+    (prisma.patient.findFirst as jest.Mock).mockResolvedValue({ id: "p1" });
+    (prisma.appointment.create as jest.Mock).mockResolvedValue({ id: "new-appt" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await service.createInternalAppointment("clinic-1", {
+      patientId: "p1",
+      professionalId: "prof-1",
+      date: "2026-09-10",
+      time: "10:00",
+      durationMinutes: 30,
+    });
+
+    const { data } = (prisma.appointment.create as jest.Mock).mock.calls[0][0];
+    // Literal em Z escrito à mão: a clínica do fake está em America/Sao_Paulo
+    // (UTC-3), então 10:00 lá são 13:00Z. Montar o esperado com `new Date()` a
+    // partir de string sem fuso repetiria o próprio bug dentro do teste.
+    expect(data.startAt.toISOString()).toBe("2026-09-10T13:00:00.000Z");
+    expect(data.endAt.toISOString()).toBe("2026-09-10T13:30:00.000Z");
+  });
+});
+
+/**
+ * A recepção ganhou "Não veio" e "Cancelar", e a API ganhou a máquina de
+ * transições que antes só existia como comentário no componente do front —
+ * qualquer um dos sete status era aceito em qualquer ordem por quem chamasse
+ * a rota direto.
+ */
+describe("SchedulingService.updateStatus — cancelar, faltar e remarcar", () => {
+  function consulta(status: AppointmentStatus) {
+    return {
+      status,
+      startAt: new Date("2026-09-10T13:00:00.000Z"),
+      endAt: new Date("2026-09-10T13:40:00.000Z"),
+      professionalId: "prof-1",
+      patient: { name: "Fulano", phone: "+5511900000000" },
+      professional: { user: { name: "Dra. Ana" } },
+    };
+  }
+
+  it("cancela uma consulta confirmada", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock).mockResolvedValue(consulta("CONFIRMED"));
+    (prisma.appointment.update as jest.Mock).mockResolvedValue({ id: "appt-1", status: "CANCELLED" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await service.updateStatus("clinic-1", "appt-1", "CANCELLED");
+
+    expect(prisma.appointment.update).toHaveBeenCalledWith({
+      where: { id: "appt-1" },
+      data: { status: "CANCELLED" },
+    });
+  });
+
+  it("marca falta em quem não apareceu", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock).mockResolvedValue(consulta("SCHEDULED"));
+    (prisma.appointment.update as jest.Mock).mockResolvedValue({ id: "appt-1", status: "NO_SHOW" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await service.updateStatus("clinic-1", "appt-1", "NO_SHOW");
+
+    expect(prisma.appointment.update).toHaveBeenCalledWith({
+      where: { id: "appt-1" },
+      data: { status: "NO_SHOW" },
+    });
+  });
+
+  it("recusa ressuscitar uma consulta já concluída", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock).mockResolvedValue(consulta("COMPLETED"));
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await expect(service.updateStatus("clinic-1", "appt-1", "SCHEDULED")).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(prisma.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("recusa transformar uma cancelada em concluída", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock).mockResolvedValue(consulta("CANCELLED"));
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await expect(service.updateStatus("clinic-1", "appt-1", "COMPLETED")).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it("clicar duas vezes no mesmo botão não é erro", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock).mockResolvedValue(consulta("CANCELLED"));
+    (prisma.appointment.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: "appt-1" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await expect(service.updateStatus("clinic-1", "appt-1", "CANCELLED")).resolves.toBeDefined();
+    expect(prisma.appointment.update).not.toHaveBeenCalled();
+  });
+
+  // Cancelar libera o horário; nesse meio-tempo outra pessoa pode tê-lo pegado.
+  // Sem esta checagem, "Remarcar" empilhava dois pacientes no mesmo encaixe.
+  it("recusa remarcar quando o horário já foi ocupado por outra consulta", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock)
+      .mockResolvedValueOnce(consulta("CANCELLED"))
+      .mockResolvedValueOnce({ id: "outra-consulta" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await expect(service.updateStatus("clinic-1", "appt-1", "SCHEDULED")).rejects.toThrow(
+      ConflictException,
+    );
+    expect(prisma.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("remarca quando o horário continua livre", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock)
+      .mockResolvedValueOnce(consulta("NO_SHOW"))
+      .mockResolvedValueOnce(null);
+    (prisma.appointment.update as jest.Mock).mockResolvedValue({ id: "appt-1", status: "SCHEDULED" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await service.updateStatus("clinic-1", "appt-1", "SCHEDULED");
+
+    expect(prisma.appointment.update).toHaveBeenCalledWith({
+      where: { id: "appt-1" },
+      data: { status: "SCHEDULED" },
+    });
+  });
+
+  it("não procura conflito quando a mudança não reocupa horário", async () => {
+    const prisma = fakePrisma();
+    (prisma.appointment.findFirst as jest.Mock).mockResolvedValue(consulta("SCHEDULED"));
+    (prisma.appointment.update as jest.Mock).mockResolvedValue({ id: "appt-1", status: "CONFIRMED" });
+    const service = new SchedulingService(prisma, fakeWhatsapp());
+
+    await service.updateStatus("clinic-1", "appt-1", "CONFIRMED");
+
+    // Uma busca só: a da própria consulta.
+    expect((prisma.appointment.findFirst as jest.Mock).mock.calls).toHaveLength(1);
   });
 });

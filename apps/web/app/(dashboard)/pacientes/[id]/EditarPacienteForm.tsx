@@ -4,6 +4,8 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import type { Patient } from "../../../../lib/api";
+import { formatarData } from "../../../../lib/datas";
+import { useFusoDaClinica } from "../../FusoDaClinica";
 import s from "../../admin.module.css";
 
 export function EditarPacienteForm({ patient }: { patient: Patient }) {
@@ -11,6 +13,8 @@ export function EditarPacienteForm({ patient }: { patient: Patient }) {
   const [name, setName] = useState(patient.name);
   const [phone, setPhone] = useState(patient.phone ?? "");
   const [email, setEmail] = useState(patient.email ?? "");
+  const [consentiu, setConsentiu] = useState(Boolean(patient.consentLGPDAt));
+  const fuso = useFusoDaClinica();
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -24,7 +28,12 @@ export function EditarPacienteForm({ patient }: { patient: Patient }) {
       const res = await fetch(`/api/staff/patients/${patient.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, phone: phone || undefined, email: email || undefined }),
+        body: JSON.stringify({
+          name,
+          phone: phone || undefined,
+          email: email || undefined,
+          consentLGPD: consentiu,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -71,6 +80,46 @@ export function EditarPacienteForm({ patient }: { patient: Patient }) {
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
+      {/* Acesso ao portal do paciente.
+
+          O login do portal exige consentimento LGPD registrado, e até aqui só
+          o agendamento público gravava isso — o paciente cadastrado no balcão
+          era mandado "procurar a recepção", que não tinha como resolver. O
+          bloco também mostra o outro requisito (e-mail), porque de nada
+          adianta consentir sem ter por onde entrar. */}
+      <fieldset className={s.portalPaciente}>
+        <legend className={s.rotuloCampo}>Acesso ao portal do paciente</legend>
+
+        <label className={s.turnoChave}>
+          <input
+            type="checkbox"
+            checked={consentiu}
+            onChange={(e) => {
+              setSucesso(false);
+              setConsentiu(e.target.checked);
+            }}
+          />
+          O paciente autorizou o uso dos dados dele (LGPD)
+        </label>
+
+        <p className={s.dica}>
+          {patient.consentLGPDAt
+            ? `Consentimento registrado em ${formatarData(patient.consentLGPDAt, fuso)}. Desmarcar revoga.`
+            : "Marque só depois de o paciente autorizar de fato — a data fica registrada."}
+        </p>
+
+        {consentiu && !email ? (
+          <p className={s.dica}>
+            Falta o e-mail: é por ele que o paciente entra no portal.
+          </p>
+        ) : null}
+        {!consentiu ? (
+          <p className={s.dica}>
+            Sem esta autorização o paciente não consegue entrar no portal.
+          </p>
+        ) : null}
+      </fieldset>
+
       <div>
         <Button type="submit" variant="primary" disabled={enviando} aria-disabled={enviando}>
           {enviando ? "Salvando…" : "Salvar alterações"}

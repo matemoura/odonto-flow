@@ -1,6 +1,7 @@
 import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { TenantGuard } from "../../common/guards/tenant.guard";
+import { WebhookSecretGuard } from "../../common/guards/webhook-secret.guard";
 import { CurrentTenant } from "../../common/decorators/current-tenant.decorator";
 import { PrismaService } from "../../database/prisma.service";
 import { AiAssistantGatewayService } from "./ai-assistant-gateway.service";
@@ -13,9 +14,15 @@ import { WhatsAppWebhookDto } from "./dto/whatsapp-webhook.dto";
  * Sem número de WhatsApp real conectado ainda, então: (1) esse endpoint faz
  * as vezes de "mensagem recebida", (2) a resposta da IA é devolvida também
  * no corpo da resposta HTTP, além de "enviada" (logada) pelo WhatsAppGateway.
+ *
+ * O corpo da resposta carrega o nome do paciente e a existência da consulta —
+ * por isso a rota exige `WHATSAPP_WEBHOOK_SECRET` (WebhookSecretGuard). Só o
+ * TenantGuard não bastava: o slug da clínica é público (é o link de
+ * agendamento), então bastava telefone + slug para transformar um número em
+ * nome de paciente de uma clínica odontológica — dado de saúde.
  */
 @Controller("integrations/whatsapp")
-@UseGuards(TenantGuard)
+@UseGuards(WebhookSecretGuard, TenantGuard)
 export class WhatsAppWebhookController {
   constructor(
     private readonly prisma: PrismaService,

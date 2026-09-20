@@ -90,6 +90,24 @@ export function zonedPeriodBoundsUtc(from: string, to: string, timeZone: string)
   return { start, end };
 }
 
+/**
+ * Converte uma data SEM hora ("2026-09-18") para a meia-noite dela no fuso da
+ * clínica.
+ *
+ * `new Date("2026-09-18")` é interpretado como meia-noite **UTC** — que numa
+ * clínica em São Paulo é 21h do dia 17. A data volta para a tela um dia atrás:
+ * o dentista digita 18 e lê 17. Foi exatamente o que aconteceu em ortodontia.
+ *
+ * Aceita também um instante completo ("2026-09-18T14:30:00Z" ou com offset),
+ * porque `@IsDateString` permite os dois formatos: aí o fuso já veio na
+ * própria string e não há o que adivinhar.
+ */
+export function zonedDateOnlyToUtc(value: string, timeZone: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? zonedDateTimeToUtc(value, "00:00", timeZone)
+    : new Date(value);
+}
+
 export function formatZonedIsoDate(date: Date, timeZone: string): string {
   const { year, month, day } = getZonedParts(date, timeZone);
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;

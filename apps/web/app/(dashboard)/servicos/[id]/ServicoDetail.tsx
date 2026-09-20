@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import type { InventoryItem, Procedure } from "../../../../lib/api";
+import type { InventoryItem, Medication, Procedure } from "../../../../lib/api";
 import s from "../../admin.module.css";
 
 function formatCents(cents: number) {
@@ -21,9 +21,11 @@ function reaisToCents(value: string) {
 export function ServicoDetail({
   procedure,
   inventoryItems,
+  medications,
 }: {
   procedure: Procedure;
   inventoryItems: InventoryItem[];
+  medications: Medication[];
 }) {
   const router = useRouter();
   const [erro, setErro] = useState<string | null>(null);
@@ -39,6 +41,13 @@ export function ServicoDetail({
   const [quantityUsed, setQuantityUsed] = useState(1);
   const [adicionandoMaterial, setAdicionandoMaterial] = useState(false);
   const [linhaEmAndamento, setLinhaEmAndamento] = useState<string | null>(null);
+
+  const [medicationId, setMedicationId] = useState(medications[0]?.id ?? "");
+  const [customName, setCustomName] = useState("");
+  const [posology, setPosology] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [adicionandoReceita, setAdicionandoReceita] = useState(false);
+  const [itemDeReceitaEmAndamento, setItemDeReceitaEmAndamento] = useState<string | null>(null);
 
   async function handleSalvarInfo(event: FormEvent) {
     event.preventDefault();
@@ -143,6 +152,63 @@ export function ServicoDetail({
       setErro(error instanceof Error ? error.message : "Não foi possível remover o material.");
     } finally {
       setLinhaEmAndamento(null);
+    }
+  }
+
+  async function handleAddPrescriptionItem(event: FormEvent) {
+    event.preventDefault();
+    if (!posology.trim()) {
+      setErro("Informe a posologia.");
+      return;
+    }
+    if (!medicationId && !customName.trim()) {
+      setErro("Escolha um medicamento do catálogo ou digite o nome.");
+      return;
+    }
+    setErro(null);
+    setAdicionandoReceita(true);
+    try {
+      const res = await fetch(`/api/staff/procedures/${procedure.id}/prescription-items`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          medicationId: medicationId || undefined,
+          customName: medicationId ? undefined : customName.trim(),
+          posology: posology.trim(),
+          instructions: instructions.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? "Não foi possível adicionar o medicamento.");
+      }
+      setCustomName("");
+      setPosology("");
+      setInstructions("");
+      router.refresh();
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível adicionar o medicamento.");
+    } finally {
+      setAdicionandoReceita(false);
+    }
+  }
+
+  async function handleRemovePrescriptionItem(itemId: string) {
+    setErro(null);
+    setItemDeReceitaEmAndamento(itemId);
+    try {
+      const res = await fetch(`/api/staff/procedures/${procedure.id}/prescription-items/${itemId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? "Não foi possível remover o medicamento.");
+      }
+      router.refresh();
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível remover o medicamento.");
+    } finally {
+      setItemDeReceitaEmAndamento(null);
     }
   }
 
@@ -293,6 +359,90 @@ export function ServicoDetail({
             </Button>
           </form>
         )}
+        </section>
+
+        <section className={s.bloco}>
+        <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Receita padrão deste serviço</h2>
+        <p style={{ fontSize: 12.5, color: "var(--tinta-70)", marginBottom: 10 }}>
+          Vem pré-pronto quando esse serviço for escolhido na hora de emitir uma receita — editável naquela hora,
+          sem alterar o que fica salvo aqui.
+        </p>
+
+        {procedure.prescriptionItems.length === 0 ? (
+          <p className={s.vazio}>Nenhum medicamento vinculado ainda.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {procedure.prescriptionItems.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  alignItems: "flex-start",
+                  padding: 10,
+                  background: "var(--gaze)",
+                  borderRadius: "var(--r-sm)",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 13 }}>{item.medication?.name ?? item.customName}</strong>
+                  <p style={{ fontSize: 12.5, margin: "2px 0 0" }}>{item.posology}</p>
+                  {item.instructions ? (
+                    <p style={{ fontSize: 12, color: "var(--tinta-70)", margin: "2px 0 0" }}>{item.instructions}</p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="odontoflow-btn odontoflow-btn--ghost odontoflow-btn--sm"
+                  disabled={itemDeReceitaEmAndamento === item.id}
+                  onClick={() => handleRemovePrescriptionItem(item.id)}
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleAddPrescriptionItem} className={s.form}>
+          <div className={s.campo}>
+            <label className={s.rotuloCampo}>Medicamento do catálogo</label>
+            <select
+              className={s.input}
+              value={medicationId}
+              onChange={(e) => {
+                setMedicationId(e.target.value);
+                const medicamento = medications.find((m) => m.id === e.target.value);
+                if (medicamento) setPosology(medicamento.defaultPosology);
+              }}
+            >
+              <option value="">— Nenhum (digitar nome abaixo) —</option>
+              {medications.map((medication) => (
+                <option key={medication.id} value={medication.id}>
+                  {medication.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {!medicationId ? (
+            <div className={s.campo}>
+              <label className={s.rotuloCampo}>Nome do medicamento</label>
+              <input className={s.input} value={customName} onChange={(e) => setCustomName(e.target.value)} />
+            </div>
+          ) : null}
+          <div className={s.campo}>
+            <label className={s.rotuloCampo}>Posologia</label>
+            <input className={s.input} value={posology} onChange={(e) => setPosology(e.target.value)} />
+          </div>
+          <div className={s.campo}>
+            <label className={s.rotuloCampo}>Instruções (opcional)</label>
+            <input className={s.input} value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+          </div>
+          <Button type="submit" variant="secondary" disabled={adicionandoReceita}>
+            {adicionandoReceita ? "Adicionando…" : "+ Adicionar medicamento"}
+          </Button>
+        </form>
         </section>
       </div>
     </div>

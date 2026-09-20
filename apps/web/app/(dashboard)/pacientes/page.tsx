@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import { getPatients } from "../../../lib/api";
+import { formatarData } from "../../../lib/datas";
+import { fusoDaClinica } from "../../../lib/fuso-servidor";
 import { getStaffSession } from "../../../lib/session";
 import s from "../admin.module.css";
 
@@ -10,16 +12,18 @@ export const metadata = { title: "Pacientes — Odonto Flow" };
 export default async function PacientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }>;
+  searchParams: Promise<{ search?: string; page?: string }>;
 }) {
   const session = await getStaffSession();
   if (!session) redirect("/entrar");
+  const fuso = await fusoDaClinica(session.clinicSlug);
 
-  const { search } = await searchParams;
+  const { search, page } = await searchParams;
+  const paginaAtual = Number(page) >= 1 ? Number(page) : 1;
 
-  let patients;
+  let pagina;
   try {
-    patients = await getPatients(session.clinicSlug, session.token, search);
+    pagina = await getPatients(session.clinicSlug, session.token, search, { page: paginaAtual });
   } catch {
     return (
       <div className={s.pagina}>
@@ -45,6 +49,9 @@ export default async function PacientesPage({
       </div>
 
       <form method="GET" style={{ display: "flex", gap: 8 }}>
+        {/* Buscar sempre reinicia na página 1: manter a página atual levaria
+            a um resultado vazio quando o filtro tem menos páginas. */}
+        <input type="hidden" name="page" value="1" />
         <input
           type="search"
           name="search"
@@ -58,8 +65,10 @@ export default async function PacientesPage({
         </Button>
       </form>
 
-      {patients.length === 0 ? (
-        <p className={s.vazio}>Nenhum paciente encontrado.</p>
+      {pagina.itens.length === 0 ? (
+        <p className={s.vazio}>
+          {search ? `Nenhum paciente com "${search}".` : "Nenhum paciente cadastrado ainda."}
+        </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table className={s.tabela}>
@@ -72,20 +81,57 @@ export default async function PacientesPage({
               </tr>
             </thead>
             <tbody>
-              {patients.map((p) => (
+              {pagina.itens.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <Link href={`/pacientes/${p.id}`}>{p.name}</Link>
                   </td>
                   <td>{p.phone ?? "—"}</td>
                   <td>{p.email ?? "—"}</td>
-                  <td>{new Intl.DateTimeFormat("pt-BR").format(new Date(p.createdAt))}</td>
+                  <td>{formatarData(p.createdAt, fuso)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Navegação por página. `<Link>` e não botão: a página fica na URL, então
+          a lista é compartilhável e o voltar do navegador funciona. A busca
+          viaja junto — trocar de página não pode descartar o filtro. */}
+      {pagina.totalDePaginas > 1 ? (
+        <nav className={s.paginacao} aria-label="Páginas de pacientes">
+          <Link
+            href={`/pacientes?${new URLSearchParams({
+              ...(search ? { search } : {}),
+              page: String(pagina.page - 1),
+            })}`}
+            className="odontoflow-btn odontoflow-btn--secondary odontoflow-btn--sm"
+            aria-disabled={pagina.page <= 1}
+            style={pagina.page <= 1 ? { pointerEvents: "none", opacity: 0.45 } : undefined}
+          >
+            ‹ Anterior
+          </Link>
+
+          <span className={s.dica}>
+            Página {pagina.page} de {pagina.totalDePaginas} · {pagina.total} paciente(s)
+          </span>
+
+          <Link
+            href={`/pacientes?${new URLSearchParams({
+              ...(search ? { search } : {}),
+              page: String(pagina.page + 1),
+            })}`}
+            className="odontoflow-btn odontoflow-btn--secondary odontoflow-btn--sm"
+            aria-disabled={pagina.page >= pagina.totalDePaginas}
+            style={
+              pagina.page >= pagina.totalDePaginas ? { pointerEvents: "none", opacity: 0.45 } : undefined
+            }
+          >
+            Próxima ›
+          </Link>
+        </nav>
+      ) : null}
     </div>
   );
 }

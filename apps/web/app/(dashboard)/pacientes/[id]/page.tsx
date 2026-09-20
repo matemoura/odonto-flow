@@ -2,13 +2,17 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import {
   ApiError,
+  getAnamnesis,
   getBudgetsForPatient,
   getCertificates,
+  getClinicalRecords,
   getContract,
   getCreditScore,
   getFacialPlannings,
+  getMedications,
   getOrthodonticTreatments,
   getPatient,
+  getPrescriptions,
   getProcedures,
   getStaffProfessionals,
   type Contract,
@@ -20,6 +24,8 @@ import { BudgetsSection } from "./BudgetsSection";
 import { OrthodonticsSection } from "./OrthodonticsSection";
 import { FaceogramSection } from "./FaceogramSection";
 import { CertificatesSection } from "./CertificatesSection";
+import { PrescriptionsSection } from "./PrescriptionsSection";
+import { EvolucaoSection } from "./EvolucaoSection";
 import s from "../../admin.module.css";
 
 export default async function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,18 +48,38 @@ export default async function EditarPacientePage({ params }: { params: Promise<{
     );
   }
 
-  const [creditScore, budgets, procedures, professionals, orthodonticTreatments, facialPlannings, certificates] =
-    await Promise.all([
-      getCreditScore(session.clinicSlug, session.token, id).catch(() => null),
-      getBudgetsForPatient(session.clinicSlug, session.token, id).catch(() => []),
-      getProcedures(session.clinicSlug, session.token).catch(() => []),
-      getStaffProfessionals(session.clinicSlug, session.token).catch(() => []),
-      getOrthodonticTreatments(session.clinicSlug, session.token, id).catch(() => []),
-      getFacialPlannings(session.clinicSlug, session.token, id).catch(() => []),
-      getCertificates(session.clinicSlug, session.token, id).catch(() => []),
-    ]);
+  const [
+    creditScore,
+    budgets,
+    procedures,
+    professionals,
+    orthodonticTreatments,
+    facialPlannings,
+    certificates,
+    clinicalRecords,
+    prescriptions,
+    medications,
+    anamnesis,
+  ] = await Promise.all([
+    // TODA falha de leitura vira `null`, nunca `[]`. Lista vazia e falha são
+    // coisas diferentes: com `[]` a tela afirmava "nenhum atestado emitido
+    // ainda" para um paciente que tem atestados, só porque a API não
+    // respondeu. Numa ficha clínica isso é o sistema mentindo com confiança.
+    // Cada seção distingue os dois casos (ver FalhaAoCarregar).
+    getCreditScore(session.clinicSlug, session.token, id).catch(() => null),
+    getBudgetsForPatient(session.clinicSlug, session.token, id).catch(() => null),
+    getProcedures(session.clinicSlug, session.token).catch(() => null),
+    getStaffProfessionals(session.clinicSlug, session.token).catch(() => null),
+    getOrthodonticTreatments(session.clinicSlug, session.token, id).catch(() => null),
+    getFacialPlannings(session.clinicSlug, session.token, id).catch(() => null),
+    getCertificates(session.clinicSlug, session.token, id).catch(() => null),
+    getClinicalRecords(session.clinicSlug, session.token, id).catch(() => null),
+    getPrescriptions(session.clinicSlug, session.token, id).catch(() => null),
+    getMedications(session.clinicSlug, session.token).catch(() => null),
+    getAnamnesis(session.clinicSlug, session.token, id).catch(() => null),
+  ]);
 
-  const approvedBudgetIds = budgets.filter((b) => b.status === "APPROVED").map((b) => b.id);
+  const approvedBudgetIds = (budgets ?? []).filter((b) => b.status === "APPROVED").map((b) => b.id);
   const contractEntries = await Promise.all(
     approvedBudgetIds.map(
       async (budgetId) => [budgetId, await getContract(session.clinicSlug, session.token, budgetId).catch(() => null)] as const,
@@ -82,6 +108,14 @@ export default async function EditarPacientePage({ params }: { params: Promise<{
         <OrthodonticsSection patientId={id} treatments={orthodonticTreatments} professionals={professionals} />
         <CertificatesSection patientId={id} certificates={certificates} professionals={professionals} />
         <FaceogramSection patientId={id} plannings={facialPlannings} />
+        <PrescriptionsSection
+          patientId={id}
+          prescriptions={prescriptions}
+          procedures={procedures}
+          medications={medications}
+          anamnesis={anamnesis}
+        />
+        <EvolucaoSection patientId={id} records={clinicalRecords} />
         <CreditScoreSection patientId={id} initial={creditScore} />
       </div>
     </div>

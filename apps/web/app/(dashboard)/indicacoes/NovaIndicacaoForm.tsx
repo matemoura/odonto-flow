@@ -3,10 +3,10 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import type { Patient } from "../../../lib/api";
+import type { PatientOption } from "../../../lib/api";
 import s from "../admin.module.css";
 
-export function NovaIndicacaoForm({ patients }: { patients: Patient[] }) {
+export function NovaIndicacaoForm({ patients }: { patients: PatientOption[] }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const [referrerPatientId, setReferrerPatientId] = useState(patients[0]?.id ?? "");
