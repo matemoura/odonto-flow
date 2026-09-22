@@ -1,5 +1,5 @@
 import { PlataformaLoginForm } from "./PlataformaLoginForm";
-import s from "../../entrar/entrar.module.css";
+import s from "./plataforma-entrar.module.css";
 
 export const metadata = { title: "Entrar — Painel da plataforma" };
 

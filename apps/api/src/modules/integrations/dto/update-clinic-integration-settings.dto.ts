@@ -22,4 +22,18 @@ export class UpdateClinicIntegrationSettingsDto {
     message: "Informe o WhatsApp com código do país, como +5511987654321.",
   })
   whatsappPhone?: string | null;
+
+  /**
+   * CNPJ do emissor da NFS-e desta clínica, só dígitos. A conta do provedor
+   * (quem a plataforma contratou) não muda, mas o CNPJ é de cada clínica —
+   * são empresas diferentes.
+   */
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value.replace(/\D/g, "") : value))
+  @ValidateIf((_, value) => value !== "" && value !== null)
+  @IsString()
+  @Matches(/^\d{14}$/, {
+    message: "Informe um CNPJ válido, com 14 dígitos.",
+  })
+  nfeCnpjEmissor?: string | null;
 }

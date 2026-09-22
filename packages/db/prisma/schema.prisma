@@ -194,6 +194,13 @@ model Clinic {
   /// de mandar de um número que não é dela.
   whatsappPhone String?
 
+  /// CNPJ do emissor da NFS-e desta clínica, só dígitos. A conta do provedor
+  /// (focus-nfe, enotas...) é da plataforma — uma só, paga por ela — mas o
+  /// CNPJ é de cada clínica: são empresas diferentes, cada nota sai de um
+  /// emissor diferente mesmo passando pela mesma conta. Por isso mora aqui, e
+  /// não em `PlatformIntegrationCredential.config`.
+  nfeCnpjEmissor String?
+
   /// Último pagamento confirmado (registrado manualmente pelo dono da
   /// plataforma até um gateway de pagamento de verdade ser plugado — ver
   /// PlatformAdminService.registerPayment). Nulo = nunca pagou; nesse caso a
@@ -905,6 +912,32 @@ model IntegrationConfig {
 
   @@unique([clinicId, kind])
   @@map("integration_configs")
+}
+
+/// A credencial REAL de cada integração — uma por tipo, da plataforma inteira
+/// (não por clínica: quem contrata e paga o WhatsApp Business API, o modelo de
+/// IA etc. é o dono da plataforma; `IntegrationConfig` é só quem está liberado
+/// pra usar o que já foi contratado aqui).
+///
+/// `secret` nunca volta pro front depois de salvo — a tela só mostra "chave
+/// configurada" ou não. Sem isso, qualquer resposta da API que incluísse este
+/// modelo vazaria a chave real de produção pra tela de quem só devia ver se
+/// está conectado.
+model PlatformIntegrationCredential {
+  id           String          @id @default(cuid())
+  kind         IntegrationKind @unique
+  providerName String
+  /// Campos não-secretos específicos do provedor (ex.: phoneNumberId do
+  /// WhatsApp, CNPJ do emissor de NFe) — o secret fica separado porque só ele
+  /// precisa do tratamento de "nunca ecoa de volta".
+  config       Json?
+  secret       String?
+  connectedAt  DateTime?
+  lastError    String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_integration_credentials")
 }
 
 /// Contrato/termo de consentimento assinado eletronicamente — ligado a um

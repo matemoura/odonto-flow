@@ -3,6 +3,7 @@ import { getIntegrationsConfig } from "../../../lib/api";
 import { integracao } from "../../../lib/integracoes";
 import { getStaffSession } from "../../../lib/session";
 import { WhatsAppDaClinicaForm } from "./WhatsAppDaClinicaForm";
+import { NfeDaClinicaForm } from "./NfeDaClinicaForm";
 import s from "../admin.module.css";
 
 export const metadata = { title: "Integrações — Odonto Flow" };
@@ -60,6 +61,7 @@ export default async function IntegracoesPage() {
                   </div>
                   <p className={s.dica}>{info.oQueFaz}</p>
                   {kind === "WHATSAPP" ? <WhatsAppDaClinicaForm whatsappPhone={view.whatsappPhone} /> : null}
+                  {kind === "NFE" ? <NfeDaClinicaForm nfeCnpjEmissor={view.nfeCnpjEmissor} /> : null}
                 </div>
               );
             })}

@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
-import s from "../../entrar/entrar.module.css";
+import s from "./plataforma-entrar.module.css";
 
 export function PlataformaLoginForm() {
   const router = useRouter();
@@ -37,6 +37,7 @@ export function PlataformaLoginForm() {
 
   return (
     <div className={s.folha}>
+      <span className={s.etiqueta}>Plataforma</span>
       <h1 className={s.marca}>Odonto Flow</h1>
       <p className={s.subtitulo}>Painel do dono da plataforma — administração de clínicas clientes.</p>
 

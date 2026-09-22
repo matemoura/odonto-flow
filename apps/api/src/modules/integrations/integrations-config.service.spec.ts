@@ -107,6 +107,20 @@ describe("IntegrationsConfigService.updateClinicSettings", () => {
       data: { whatsappPhone: null },
     });
   });
+
+  it("salvar o CNPJ do emissor não mexe no WhatsApp, e vice-versa", async () => {
+    const prisma = fakePrisma();
+    (prisma.clinic.findUniqueOrThrow as jest.Mock).mockResolvedValue({ nfeCnpjEmissor: "12345678000199" });
+    (prisma.integrationConfig.findMany as jest.Mock).mockResolvedValue([]);
+    const service = new IntegrationsConfigService(prisma);
+
+    await service.updateClinicSettings("clinic-1", { nfeCnpjEmissor: "12345678000199" });
+
+    expect(prisma.clinic.update).toHaveBeenCalledWith({
+      where: { id: "clinic-1" },
+      data: { nfeCnpjEmissor: "12345678000199" },
+    });
+  });
 });
 
 describe("IntegrationsConfigService.listForPlatform", () => {

@@ -1,8 +1,9 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
-import { IntegrationKind } from "@odontoflow/db";
+import { IntegrationKind, Prisma } from "@odontoflow/db";
 import { PrismaService } from "../../database/prisma.service";
 import { ReleaseIntegrationDto } from "./dto/release-integration.dto";
 import { UpdateClinicIntegrationSettingsDto } from "./dto/update-clinic-integration-settings.dto";
+import { UpsertPlatformIntegrationCredentialDto } from "./dto/upsert-platform-integration-credential.dto";
 
 export const ALL_KINDS: IntegrationKind[] = ["WHATSAPP", "AI_ASSISTANT", "NFE", "E_SIGNATURE", "CREDIT_SCORE"];
 
@@ -66,7 +67,7 @@ export class IntegrationsConfigService {
     const [clinic, configs] = await Promise.all([
       this.prisma.clinic.findUniqueOrThrow({
         where: { id: clinicId },
-        select: { whatsappPhone: true },
+        select: { whatsappPhone: true, nfeCnpjEmissor: true },
       }),
       this.prisma.integrationConfig.findMany({
         where: { clinicId, enabled: true },
@@ -76,6 +77,7 @@ export class IntegrationsConfigService {
 
     return {
       whatsappPhone: clinic.whatsappPhone,
+      nfeCnpjEmissor: clinic.nfeCnpjEmissor,
       // Ordem fixa da lista, não a ordem que o banco devolveu — a tela não deve
       // trocar de arrumação a cada liberação nova.
       integrations: ALL_KINDS.filter((kind) => configs.some((c) => c.kind === kind)).map((kind) => ({
@@ -87,10 +89,10 @@ export class IntegrationsConfigService {
 
   /** Campos da clínica, e só eles — provedor e liberação não passam por aqui. */
   async updateClinicSettings(clinicId: string, dto: UpdateClinicIntegrationSettingsDto) {
-    await this.prisma.clinic.update({
-      where: { id: clinicId },
-      data: { whatsappPhone: dto.whatsappPhone?.trim() || null },
-    });
+    const data: Prisma.ClinicUpdateInput = {};
+    if (dto.whatsappPhone !== undefined) data.whatsappPhone = dto.whatsappPhone?.trim() || null;
+    if (dto.nfeCnpjEmissor !== undefined) data.nfeCnpjEmissor = dto.nfeCnpjEmissor?.trim() || null;
+    await this.prisma.clinic.update({ where: { id: clinicId }, data });
     return this.getClinicView(clinicId);
   }
 
@@ -131,5 +133,60 @@ export class IntegrationsConfigService {
       create: { clinicId, kind, providerName, enabled: dto.enabled },
       select: { clinicId: true, kind: true, providerName: true, enabled: true },
     });
+  }
+
+  /**
+   * A conexão real de cada integração, uma por tipo, pra tela de
+   * Configurações da plataforma. Nunca devolve `secret` — só se ele existe —
+   * porque essa é justamente a chave que autentica com o provedor de verdade.
+   */
+  async listCredentials() {
+    const rows = await this.prisma.platformIntegrationCredential.findMany();
+    return ALL_KINDS.map((kind) => {
+      const row = rows.find((r) => r.kind === kind);
+      return {
+        kind,
+        providerName: row?.providerName ?? null,
+        config: row?.config ?? null,
+        temSecret: Boolean(row?.secret),
+        connectedAt: row?.connectedAt ?? null,
+        lastError: row?.lastError ?? null,
+      };
+    });
+  }
+
+  /**
+   * Salva a credencial real de uma integração. `secret` ausente mantém o
+   * anterior — permite trocar só `providerName`/`config` sem redigitar a
+   * chave, e um formulário nunca pré-preenche o campo de chave com o valor
+   * salvo (ele não volta da API, então não tem como).
+   */
+  async upsertCredential(kind: IntegrationKind, dto: UpsertPlatformIntegrationCredentialDto) {
+    const data: Prisma.PlatformIntegrationCredentialUpdateInput = {
+      providerName: dto.providerName,
+      config: dto.config as Prisma.InputJsonValue,
+      connectedAt: new Date(),
+      lastError: null,
+      ...(dto.secret ? { secret: dto.secret } : {}),
+    };
+    const row = await this.prisma.platformIntegrationCredential.upsert({
+      where: { kind },
+      update: data,
+      create: {
+        kind,
+        providerName: dto.providerName,
+        config: dto.config as Prisma.InputJsonValue,
+        secret: dto.secret,
+        connectedAt: new Date(),
+      },
+    });
+    return {
+      kind: row.kind,
+      providerName: row.providerName,
+      config: row.config,
+      temSecret: Boolean(row.secret),
+      connectedAt: row.connectedAt,
+      lastError: row.lastError,
+    };
   }
 }

@@ -12,7 +12,8 @@ export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   try {
     const view = await updateClinicIntegrationSettings(session.clinicSlug, session.token, {
-      whatsappPhone: body.whatsappPhone ?? null,
+      ...(body.whatsappPhone !== undefined ? { whatsappPhone: body.whatsappPhone } : {}),
+      ...(body.nfeCnpjEmissor !== undefined ? { nfeCnpjEmissor: body.nfeCnpjEmissor } : {}),
     });
     return NextResponse.json(view);
   } catch (error) {

@@ -1,0 +1,109 @@
+/* Fundo escuro invertido (--consultorio), diferente do login claro da clínica
+   e do paciente — o único contraste deliberado deste painel: entrar aqui já
+   avisa "você está do outro lado do produto", antes mesmo do formulário. */
+.pagina {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--consultorio);
+}
+
+.folha {
+  width: 100%;
+  max-width: 380px;
+}
+
+.etiqueta {
+  display: block;
+  margin-bottom: 10px;
+  font-family: var(--fonte-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9fc2ae;
+}
+
+.marca {
+  font-family: var(--fonte-display);
+  font-size: 26px;
+  color: var(--gaze);
+  margin-bottom: 6px;
+}
+
+.subtitulo {
+  margin: 0 0 24px;
+  font-size: 13px;
+  color: #cfe0d6;
+  line-height: 1.5;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.rotuloCampo {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gaze);
+}
+
+.input {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #2f5c48;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-family: var(--fonte-ui);
+  color: var(--gaze);
+  background: #16332a;
+}
+.input::placeholder {
+  color: #6f9683;
+}
+.input:focus-visible {
+  outline: 3px solid var(--salvia);
+  outline-offset: 1px;
+}
+
+.erro {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: rgba(122, 59, 87, 0.35);
+  color: #f3d3de;
+  font-size: 12.5px;
+}
+
+.acoes {
+  margin-top: 4px;
+}
+/* `:global()` é obrigatório: `odontoflow-btn` é classe global (vem do
+   componente Button), e num CSS Module um seletor de classe é embaralhado na
+   compilação — sem isso a regra nunca casa e o botão fica com largura de
+   conteúdo. */
+.acoes :global(.odontoflow-btn) {
+  width: 100%;
+}
+/* O botão primário global é verde-escuro sobre fundo claro — aqui o fundo já
+   é esse mesmo verde, então o botão sumiria. Invertido (creme sobre verde),
+   ele volta a ser o elemento mais claro da tela, como um botão primário deve
+   ser. */
+.acoes :global(.odontoflow-btn--primary) {
+  background: var(--gaze);
+  color: var(--consultorio);
+}
+.acoes :global(.odontoflow-btn--primary:hover) {
+  background: #e4ded2;
+}
+
+.rodape {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  color: #6f9683;
+  line-height: 1.6;
+}

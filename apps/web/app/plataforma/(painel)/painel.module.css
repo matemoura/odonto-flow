@@ -6,31 +6,80 @@
 .topo {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 28px;
   padding: 14px 24px;
   background: var(--consultorio);
   color: var(--gaze);
   flex-wrap: wrap;
+  border-bottom: 2px solid #14352a;
 }
 
 .marca {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   font-family: var(--fonte-display);
   font-size: 18px;
+  white-space: nowrap;
+}
+/* O rótulo "plataforma" em mono marca que este é o console do dono do
+   negócio, não a tela de uma clínica — a mesma fonte que a tabela usa para
+   dado, aqui usada para dizer onde você está. */
+.marcaEtiqueta {
+  font-family: var(--fonte-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9fc2ae;
 }
 
 .nav {
   display: flex;
-  gap: 16px;
+  gap: 4px;
   flex: 1;
+  flex-wrap: wrap;
 }
 .nav a {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
   color: #cfe0d6;
   text-decoration: none;
-  font-size: 13.5px;
+  font-family: var(--fonte-mono);
+  font-size: 12px;
   font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transition: background var(--transicao), color var(--transicao);
 }
 .nav a:hover {
   color: var(--gaze);
+  background: rgba(250, 247, 242, 0.08);
+}
+.nav a[aria-current="page"] {
+  color: var(--consultorio);
+  background: var(--gaze);
+  font-weight: 600;
+}
+
+.sair {
+  background: none;
+  border: none;
+  color: #cfe0d6;
+  opacity: 0.9;
+  cursor: pointer;
+  font-family: var(--fonte-mono);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.sair:hover {
+  color: var(--gaze);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .conteudo {
@@ -55,6 +104,7 @@
 }
 
 .titulo {
+  font-family: var(--fonte-display);
   font-size: clamp(1.4rem, 3.2vw, 1.7rem);
 }
 
@@ -64,6 +114,10 @@
   margin-top: 2px;
 }
 
+/* --- tabela-ledger --------------------------------------------------------
+   O signo visual deste painel: dado tabular em mono, com uma régua de cor à
+   esquerda de cada linha em vez de só um selo — a mesma informação (em dia /
+   inadimplente / suspensa) lida de relance, na borda, como um livro-caixa. */
 .tabela {
   width: 100%;
   border-collapse: collapse;
@@ -72,9 +126,10 @@
 .tabela th {
   text-align: left;
   padding: 8px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--fonte-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--tinta-55);
   border-bottom: 1px solid var(--linha-forte);
@@ -86,6 +141,23 @@
 }
 .tabela tr:last-child td {
   border-bottom: 0;
+}
+.tabela tbody tr {
+  border-left: 3px solid var(--linha);
+}
+.tabela tbody tr.linha--ok {
+  border-left-color: var(--salvia);
+}
+.tabela tbody tr.linha--alerta {
+  border-left-color: #c9a24a;
+}
+.tabela tbody tr.linha--perigo {
+  border-left-color: var(--ameixa);
+}
+.tabelaMono {
+  font-family: var(--fonte-mono);
+  font-size: 12.5px;
+  color: var(--tinta-70);
 }
 
 .vazio {
@@ -132,6 +204,7 @@
   padding: var(--s5);
   border-radius: var(--r-lg);
   background: var(--gaze);
+  border: 1px solid var(--linha);
 }
 
 .cartaoClinicaTopo {
@@ -202,6 +275,7 @@
    coluna prometeria um texto longo que nunca vem. */
 .linhaIntegracaoProvedor .input {
   max-width: 240px;
+  font-family: var(--fonte-mono);
 }
 
 /* Um aviso de linha não deve empurrar a linha seguinte para longe. */
@@ -260,4 +334,46 @@
 .input:focus-visible {
   outline: 3px solid var(--salvia);
   outline-offset: 1px;
+}
+
+/* --- conectar serviços (Configurações) -------------------------------------
+   Um cartão por integração, no mesmo espírito do cartão-clínica acima: a
+   pergunta ("está conectado?") junto da resposta e do formulário que muda ela. */
+.listaConexoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cartaoConexao {
+  padding: var(--s5);
+  border-radius: var(--r-lg);
+  background: var(--gaze);
+  border: 1px solid var(--linha);
+}
+.cartaoConexaoTopo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--linha);
+}
+.cartaoConexaoNome {
+  font-size: 15px;
+  font-weight: 600;
+}
+.formConexao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.linhaConexao {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 14px;
 }

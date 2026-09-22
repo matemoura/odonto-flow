@@ -15,6 +15,12 @@ function formatarDataDaPlataforma(iso: string | null) {
   return formatarData(iso, FUSO_DA_PLATAFORMA);
 }
 
+function statusDaClinica(clinic: PlatformClinic): "ok" | "alerta" | "perigo" {
+  const { subscription } = clinic;
+  if (subscription.manuallySuspended || subscription.delinquent) return "perigo";
+  return "ok";
+}
+
 function Selo({ clinic }: { clinic: PlatformClinic }) {
   const { subscription } = clinic;
   if (subscription.manuallySuspended) {
@@ -118,18 +124,18 @@ export function ClinicsTable({ clinics }: { clinics: PlatformClinic[] }) {
             {clinics.map((clinic) => {
               const emAndamento = linhaEmAndamento === clinic.id;
               return (
-                <tr key={clinic.id}>
+                <tr key={clinic.id} className={s[`linha--${statusDaClinica(clinic)}`]}>
                   <td>
                     <strong>{clinic.name}</strong>
-                    <div style={{ fontSize: 11.5, color: "var(--tinta-55)" }}>{clinic.slug}</div>
+                    <div className={s.tabelaMono}>{clinic.slug}</div>
                   </td>
                   <td>{clinic.plan ?? "—"}</td>
                   <td>
                     <Selo clinic={clinic} />
                   </td>
-                  <td>{formatarDataDaPlataforma(clinic.lastPaymentAt)}</td>
-                  <td>{clinic._count.patients}</td>
-                  <td>{clinic._count.memberships}</td>
+                  <td className={s.tabelaMono}>{formatarDataDaPlataforma(clinic.lastPaymentAt)}</td>
+                  <td className={s.tabelaMono}>{clinic._count.patients}</td>
+                  <td className={s.tabelaMono}>{clinic._count.memberships}</td>
                   <td>
                     <div className={s.acoes}>
                       <button

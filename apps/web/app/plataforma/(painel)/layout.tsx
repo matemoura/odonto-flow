@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getPlatformSession } from "../../../lib/session";
 import { LogoutButton } from "./LogoutButton";
+import { PainelNav } from "./PainelNav";
 import s from "./painel.module.css";
 
 export default async function PainelPlataformaLayout({ children }: { children: ReactNode }) {
@@ -12,14 +12,10 @@ export default async function PainelPlataformaLayout({ children }: { children: R
   return (
     <div className={s.shell}>
       <header className={s.topo}>
-        <span className={s.marca}>Odonto Flow · plataforma</span>
-        <nav className={s.nav}>
-          <Link href="/plataforma">Clínicas</Link>
-          <Link href="/plataforma/metricas">Métricas</Link>
-          <Link href="/plataforma/integracoes">Integrações</Link>
-          <Link href="/plataforma/configuracoes">Configurações</Link>
-          <Link href="/plataforma/exportar">Exportar</Link>
-        </nav>
+        <span className={s.marca}>
+          Odonto Flow<span className={s.marcaEtiqueta}>plataforma</span>
+        </span>
+        <PainelNav />
         <LogoutButton />
       </header>
       <main className={s.conteudo}>{children}</main>

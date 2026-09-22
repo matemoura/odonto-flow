@@ -998,6 +998,7 @@ export type IntegrationKind = "WHATSAPP" | "AI_ASSISTANT" | "NFE" | "E_SIGNATURE
  */
 export type ClinicIntegrationsView = {
   whatsappPhone: string | null;
+  nfeCnpjEmissor: string | null;
   integrations: { kind: IntegrationKind; providerName: string }[];
 };
 
@@ -1008,7 +1009,7 @@ export function getIntegrationsConfig(clinicSlug: string, token: string) {
 export function updateClinicIntegrationSettings(
   clinicSlug: string,
   token: string,
-  input: { whatsappPhone: string | null },
+  input: { whatsappPhone?: string | null; nfeCnpjEmissor?: string | null },
 ) {
   return request<ClinicIntegrationsView>("/integrations/config/settings", {
     clinicSlug,
@@ -1041,6 +1042,36 @@ export function releaseIntegration(
     `/platform-admin/integrations/${clinicId}/${kind}`,
     { token, method: "PUT", body: input },
   );
+}
+
+/**
+ * A conexão real de cada integração — o que a plataforma contratou com o
+ * provedor de verdade. `temSecret` é só um booleano: a chave em si nunca sai
+ * da API depois de salva.
+ */
+export type PlatformIntegrationCredential = {
+  kind: IntegrationKind;
+  providerName: string | null;
+  config: Record<string, unknown> | null;
+  temSecret: boolean;
+  connectedAt: string | null;
+  lastError: string | null;
+};
+
+export function getPlatformIntegrationCredentials(token: string) {
+  return request<PlatformIntegrationCredential[]>("/platform-admin/integrations/credentials", { token });
+}
+
+export function upsertPlatformIntegrationCredential(
+  token: string,
+  kind: IntegrationKind,
+  input: { providerName: string; config?: Record<string, unknown>; secret?: string },
+) {
+  return request<PlatformIntegrationCredential>(`/platform-admin/integrations/credentials/${kind}`, {
+    token,
+    method: "PUT",
+    body: input,
+  });
 }
 
 /* --- serviços (procedimentos), estoque e materiais (staff) ----------------------- */

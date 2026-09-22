@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import s from "./painel.module.css";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -12,20 +13,7 @@ export function LogoutButton() {
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleLogout}
-      style={{
-        background: "none",
-        border: "none",
-        color: "inherit",
-        opacity: 0.85,
-        cursor: "pointer",
-        fontSize: 12.5,
-        textDecoration: "underline",
-        textUnderlineOffset: 2,
-      }}
-    >
+    <button type="button" className={s.sair} onClick={handleLogout}>
       Sair
     </button>
   );
