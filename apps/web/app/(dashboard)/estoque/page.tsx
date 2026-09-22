@@ -85,6 +85,7 @@ export default async function EstoquePage({
                 <th>Disponível</th>
                 <th>Mínimo</th>
                 <th></th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +104,11 @@ export default async function EstoquePage({
                     {item.needsRestock ? (
                       <span className="chip chip--estatico chip--alerta">Repor</span>
                     ) : null}
+                  </td>
+                  <td>
+                    <Link href={`/estoque/${item.id}`} className="odontoflow-btn odontoflow-btn--secondary odontoflow-btn--sm">
+                      Editar
+                    </Link>
                   </td>
                 </tr>
               ))}
