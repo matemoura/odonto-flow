@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
+import archiver from "archiver";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { SuperAdminGuard } from "../../common/guards/super-admin.guard";
 import { PlatformAdminService } from "./platform-admin.service";
@@ -19,6 +21,30 @@ export class PlatformAdminController {
   @Get("metrics")
   getMetrics() {
     return this.platformAdmin.getMetrics();
+  }
+
+  /**
+   * Todo documento (foto, radiografia, contrato) de toda clínica, num .zip
+   * em streaming — não passa por interceptor/serializer do Nest de propósito
+   * (`@Res()` sem `passthrough`), porque a resposta aqui é bytes de arquivo
+   * saindo aos poucos, não um JSON de uma vez só.
+   */
+  @Get("export/documents")
+  async exportDocuments(@Res() res: Response) {
+    const nomeArquivo = `odontoflow-documentos-${new Date().toISOString().slice(0, 10)}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${nomeArquivo}"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (error) => {
+      // Erro chegando pelo evento do archiver, não por exceção — a resposta
+      // já pode ter começado a ser escrita, então só dá pra encerrar a conexão.
+      res.destroy(error);
+    });
+    archive.pipe(res);
+
+    await this.platformAdmin.appendDocumentsToArchive(archive);
+    await archive.finalize();
   }
 
   @Post("clinics/:id/register-payment")

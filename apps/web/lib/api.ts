@@ -1640,7 +1640,7 @@ export type FacialPlanning = {
   overlayData: unknown;
   notes: string | null;
   createdAt: string;
-  document: { id: string; storageKey: string; fileName: string; mimeType: string };
+  document: { id: string; fileName: string; mimeType: string };
 };
 
 export function getFacialPlannings(clinicSlug: string, token: string, patientId: string) {

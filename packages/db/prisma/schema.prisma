@@ -730,7 +730,11 @@ model Document {
   patientId  String
   patient    Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
   type       DocumentType
-  storageKey String
+  /// O arquivo em si, guardado no Postgres — sem depender de disco local (que
+  /// é efêmero em qualquer host de container) nem de object storage externo
+  /// ainda. Ver `/plataforma` → Exportar para tirar tudo daqui na hora de
+  /// migrar para R2/S3.
+  content    Bytes
   fileName   String
   mimeType   String
   sizeBytes  Int

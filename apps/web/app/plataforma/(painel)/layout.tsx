@@ -18,6 +18,7 @@ export default async function PainelPlataformaLayout({ children }: { children: R
           <Link href="/plataforma/metricas">Métricas</Link>
           <Link href="/plataforma/integracoes">Integrações</Link>
           <Link href="/plataforma/configuracoes">Configurações</Link>
+          <Link href="/plataforma/exportar">Exportar</Link>
         </nav>
         <LogoutButton />
       </header>

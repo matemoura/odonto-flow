@@ -1,8 +1,12 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import type { Archiver } from "archiver";
 import { PrismaService } from "../../database/prisma.service";
 import { getClinicSubscriptionStatus } from "../../common/subscription/clinic-subscription.util";
 import { SuspendClinicDto } from "./dto/suspend-clinic.dto";
 import { UpdatePlatformSettingsDto } from "./dto/update-platform-settings.dto";
+
+/** Quantos documentos ficam na memória de cada vez — os outros continuam só no banco até sua vez. */
+const EXPORT_BATCH_SIZE = 50;
 
 const DEFAULT_GRACE_PERIOD_DAYS = 14;
 
@@ -98,6 +102,66 @@ export class PlatformAdminService {
         .sort((a, b) => b.total - a.total),
       agregados: { pacientes: totalPacientes, profissionais: totalProfissionais, consultasNoMes },
     };
+  }
+
+  /**
+   * Escreve todo documento de toda clínica (fotos, radiografias, contratos)
+   * direto num arquivo .zip, em streaming — é a saída pra tirar os arquivos
+   * do Postgres na hora de migrar pra object storage (R2/S3) de verdade.
+   *
+   * Paginado por `id` (nunca `findMany()` sem limite): cada documento pode
+   * ter até 15MB (`documents.controller.ts`), então carregar todos de uma vez
+   * na memória do processo derrubaria a API em qualquer volume razoável de
+   * clínicas. Só os `EXPORT_BATCH_SIZE` da vez ficam na memória; os demais
+   * continuam só no banco até chegar a sua página.
+   *
+   * A pasta de cada arquivo dentro do zip (`<slug da clínica>/<id do
+   * paciente>/<id do documento>-<nome>`) já é o formato de chave pronto pra
+   * virar a key de um objeto no R2/S3 depois.
+   */
+  async appendDocumentsToArchive(archive: Archiver) {
+    const manifesto: string[] = ["clinica,paciente_id,documento_id,tipo,nome_arquivo,tamanho_bytes,criado_em"];
+    let cursor: string | undefined;
+
+    for (;;) {
+      const documentos = await this.prisma.document.findMany({
+        take: EXPORT_BATCH_SIZE,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          patientId: true,
+          type: true,
+          fileName: true,
+          sizeBytes: true,
+          createdAt: true,
+          content: true,
+          clinic: { select: { slug: true } },
+        },
+      });
+      if (documentos.length === 0) break;
+
+      for (const documento of documentos) {
+        const caminho = `${documento.clinic.slug}/${documento.patientId}/${documento.id}-${documento.fileName}`;
+        archive.append(Buffer.from(documento.content), { name: caminho });
+        manifesto.push(
+          [
+            documento.clinic.slug,
+            documento.patientId,
+            documento.id,
+            documento.type,
+            documento.fileName,
+            documento.sizeBytes,
+            documento.createdAt.toISOString(),
+          ].join(","),
+        );
+      }
+
+      cursor = documentos[documentos.length - 1].id;
+      if (documentos.length < EXPORT_BATCH_SIZE) break;
+    }
+
+    archive.append(manifesto.join("\n"), { name: "manifesto.csv" });
   }
 
   /** Registra um pagamento manualmente — até um gateway de verdade ser plugado, é assim que se "marca como pago". */

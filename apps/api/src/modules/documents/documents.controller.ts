@@ -1,4 +1,3 @@
-import { createReadStream } from "node:fs";
 import {
   Body,
   Controller,
@@ -21,7 +20,7 @@ import { CurrentTenant } from "../../common/decorators/current-tenant.decorator"
 import { AuditEntity, AuditLogInterceptor } from "../../common/interceptors/audit-log.interceptor";
 import { DocumentsService } from "./documents.service";
 import { UploadDocumentDto } from "./dto/upload-document.dto";
-import { documentFileFilter, documentStorage } from "./uploads.config";
+import { documentFileFilter, documentMemoryStorage } from "./uploads.config";
 
 @Controller("documents")
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -40,7 +39,7 @@ export class DocumentsController {
   @AuditEntity("Document")
   @UseInterceptors(
     FileInterceptor("file", {
-      storage: documentStorage(),
+      storage: documentMemoryStorage(),
       fileFilter: documentFileFilter,
       limits: { fileSize: 15 * 1024 * 1024 },
     }),
@@ -56,8 +55,8 @@ export class DocumentsController {
   @Get(":id/download")
   @AuditEntity("Document")
   async download(@CurrentTenant() clinicId: string, @Param("id") id: string) {
-    const { document, path } = await this.documents.getFileForDownload(clinicId, id);
-    return new StreamableFile(createReadStream(path), {
+    const document = await this.documents.getFileForDownload(clinicId, id);
+    return new StreamableFile(document.content, {
       type: document.mimeType,
       disposition: `attachment; filename="${document.fileName}"`,
     });

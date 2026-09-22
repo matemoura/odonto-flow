@@ -1,9 +1,17 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { join } from "node:path";
 import { DocumentType } from "@odontoflow/db";
 import { PrismaService } from "../../database/prisma.service";
 import { assertPacienteDaClinica } from "../../common/scope/tenant-scope.util";
-import { UPLOADS_ROOT } from "./uploads.config";
+
+/** Nunca inclui `content` — listar não precisa carregar o binário inteiro de cada arquivo. */
+const METADATA_SELECT = {
+  id: true,
+  type: true,
+  fileName: true,
+  mimeType: true,
+  sizeBytes: true,
+  createdAt: true,
+} as const;
 
 @Injectable()
 export class DocumentsService {
@@ -12,6 +20,7 @@ export class DocumentsService {
   listForPatient(clinicId: string, patientId: string) {
     return this.prisma.document.findMany({
       where: { clinicId, patientId },
+      select: METADATA_SELECT,
       orderBy: { createdAt: "desc" },
     });
   }
@@ -22,29 +31,36 @@ export class DocumentsService {
     type: DocumentType,
     file: Express.Multer.File,
   ) {
-    // O arquivo já foi gravado em disco quando chegamos aqui (o multer roda
-    // antes do handler), mas dentro da pasta da clínica da SESSÃO. Sem esta
-    // checagem, o registro no banco apontaria o documento para paciente de
-    // outra clínica — e a ficha dele passaria a exibir um arquivo alheio.
+    // Sem esta checagem, o registro no banco apontaria o documento para
+    // paciente de outra clínica — e a ficha dele passaria a exibir um
+    // arquivo alheio.
     await assertPacienteDaClinica(this.prisma, clinicId, patientId);
     return this.prisma.document.create({
       data: {
         clinicId,
         patientId,
         type,
-        storageKey: file.filename,
         fileName: file.originalname,
         mimeType: file.mimetype,
         sizeBytes: file.size,
+        // `Uint8Array(buffer)` em vez de `file.buffer` direto: o `Buffer` do
+        // Node é tipado como `Uint8Array<ArrayBufferLike>`, mais largo do que
+        // o `Uint8Array<ArrayBuffer>` que o Prisma exige pra `Bytes` — só um
+        // atrito de tipos, os bytes são os mesmos.
+        content: new Uint8Array(file.buffer),
       },
+      select: METADATA_SELECT,
     });
   }
 
   async getFileForDownload(clinicId: string, id: string) {
-    const document = await this.prisma.document.findFirst({ where: { id, clinicId } });
+    const document = await this.prisma.document.findFirst({
+      where: { id, clinicId },
+      select: { fileName: true, mimeType: true, content: true },
+    });
     if (!document) {
       throw new NotFoundException("Documento não encontrado.");
     }
-    return { document, path: join(UPLOADS_ROOT, clinicId, document.storageKey) };
+    return document;
   }
 }

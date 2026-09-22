@@ -4,7 +4,7 @@ import { PrismaService } from "../../database/prisma.service";
 import { CreateFacialPlanningDto } from "./dto/create-facial-planning.dto";
 
 const PLANNING_INCLUDE = {
-  document: { select: { id: true, storageKey: true, fileName: true, mimeType: true } },
+  document: { select: { id: true, fileName: true, mimeType: true } },
 };
 
 @Injectable()
@@ -31,8 +31,12 @@ export class FaceogramService {
   }
 
   async create(clinicId: string, userId: string, dto: CreateFacialPlanningDto) {
+    // `select: { id: true }` — aqui só interessa se o documento existe (e é
+    // desta clínica/paciente); sem isso o `Document.content` inteiro (o
+    // binário da foto) seria carregado à toa.
     const document = await this.prisma.document.findFirst({
       where: { id: dto.documentId, clinicId, patientId: dto.patientId },
+      select: { id: true },
     });
     if (!document) {
       throw new NotFoundException("Foto não encontrada para este paciente.");

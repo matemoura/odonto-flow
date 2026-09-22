@@ -7,7 +7,6 @@ export default function HomePage() {
     <main id="conteudo" className={s.pagina}>
       <div className={s.topo}>
         <span className={s.marca}>Odonto Flow</span>
-        <span className={s.selo}>Ambiente de demonstração</span>
       </div>
 
       <section className={s.hero}>

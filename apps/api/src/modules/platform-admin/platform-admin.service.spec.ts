@@ -6,8 +6,23 @@ function fakePrisma(overrides: Record<string, unknown> = {}) {
   return {
     clinic: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), update: jest.fn() },
     platformSettings: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn() },
+    document: { findMany: jest.fn().mockResolvedValue([]) },
     ...overrides,
   } as unknown as PrismaService;
+}
+
+function fakeDocumento(id: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    patientId: "patient-1",
+    type: "PHOTO",
+    fileName: `${id}.png`,
+    sizeBytes: 3,
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    content: Buffer.from("abc"),
+    clinic: { slug: "vila-nova" },
+    ...overrides,
+  };
 }
 
 describe("PlatformAdminService.getSettings", () => {
@@ -52,6 +67,58 @@ describe("PlatformAdminService.listClinics", () => {
     expect(result[0].subscription.blocked).toBe(false);
     expect(result[1].subscription.blocked).toBe(true);
     expect(result[1].subscription.delinquent).toBe(true);
+  });
+});
+
+describe("PlatformAdminService.appendDocumentsToArchive", () => {
+  it("adiciona cada documento ao zip com o caminho clínica/paciente/id-nome, e o manifesto por último", async () => {
+    const prisma = fakePrisma({
+      document: { findMany: jest.fn().mockResolvedValue([fakeDocumento("doc-1")]) },
+    });
+    const service = new PlatformAdminService(prisma);
+    const archive = { append: jest.fn() };
+
+    await service.appendDocumentsToArchive(archive as never);
+
+    expect(archive.append).toHaveBeenCalledTimes(2);
+    expect(archive.append).toHaveBeenNthCalledWith(1, Buffer.from("abc"), {
+      name: "vila-nova/patient-1/doc-1-doc-1.png",
+    });
+    const [manifestoConteudo, manifestoOpcoes] = archive.append.mock.calls[1];
+    expect(manifestoOpcoes).toEqual({ name: "manifesto.csv" });
+    expect(manifestoConteudo).toContain("vila-nova,patient-1,doc-1,PHOTO,doc-1.png,3,2026-01-01T00:00:00.000Z");
+  });
+
+  it("pagina por id — busca a próxima leva só depois de esgotar a anterior", async () => {
+    const primeiraLeva = Array.from({ length: 50 }, (_, i) => fakeDocumento(`doc-${i}`));
+    const findMany = jest
+      .fn()
+      .mockResolvedValueOnce(primeiraLeva)
+      .mockResolvedValueOnce([fakeDocumento("doc-50")])
+      .mockResolvedValueOnce([]);
+    const prisma = fakePrisma({ document: { findMany } });
+    const service = new PlatformAdminService(prisma);
+    const archive = { append: jest.fn() };
+
+    await service.appendDocumentsToArchive(archive as never);
+
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[1][0]).toEqual(
+      expect.objectContaining({ cursor: { id: "doc-49" }, skip: 1 }),
+    );
+    // 50 da primeira leva + 1 da segunda + 1 manifesto.
+    expect(archive.append).toHaveBeenCalledTimes(52);
+  });
+
+  it("não quebra e ainda escreve o manifesto (vazio) quando não há nenhum documento", async () => {
+    const prisma = fakePrisma({ document: { findMany: jest.fn().mockResolvedValue([]) } });
+    const service = new PlatformAdminService(prisma);
+    const archive = { append: jest.fn() };
+
+    await service.appendDocumentsToArchive(archive as never);
+
+    expect(archive.append).toHaveBeenCalledTimes(1);
+    expect(archive.append).toHaveBeenCalledWith(expect.any(String), { name: "manifesto.csv" });
   });
 });
 

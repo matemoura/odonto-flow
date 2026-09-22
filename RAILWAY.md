@@ -78,6 +78,50 @@ pnpm db:create-super-admin
 **Não rode `pnpm db:seed` em produção** — ele planta a clínica de
 demonstração e a senha de desenvolvimento (`senha123`).
 
+## Troubleshooting: "Não foi possível encontrar o módulo '@odontoflow/db'"
+
+Se o build da API falhar com centenas de erros TS2307/TS2339 (`@odontoflow/db`
+não encontrado, `PrismaService` sem nenhuma propriedade), quase sempre é a
+mesma causa: o Prisma Client não foi gerado antes do `nest build` — o pacote
+`@odontoflow/db` aponta `main`/`types` direto pra `generated/client/`, uma
+pasta que não existe até alguém rodar `prisma generate` (ela é gitignored de
+propósito, é build output).
+
+Isso acontecia quando o Railway ignorava o `buildCommand` deste arquivo e
+rodava só `pnpm --filter @odontoflow/api build` por conta própria (o Railpack
+faz uma detecção automática de monorepo pnpm e às vezes decide o comando de
+build sozinho, sem carregar o `railway.api.toml` — normalmente porque o
+**Config-as-code file path** não foi configurado nas Settings do serviço; veja
+o passo 2 acima).
+
+Duas camadas de proteção contra isso:
+1. **`apps/api/package.json`** — o script `build` agora é `pnpm --filter
+   @odontoflow/db generate && pnpm --filter "@odontoflow/integration-*" build
+   && nest build`, então ele sempre gera o client e compila os pacotes de
+   integração sozinho, não importa qual comando externo o dispare.
+2. Ainda assim, confirme que **Config-as-code file path** está de fato
+   apontando para `railway.api.toml` nas Settings do serviço — sem isso, o
+   `prisma migrate deploy` (que só existe dentro do `buildCommand` deste
+   arquivo) nunca roda, e o banco de produção nunca recebe as migrations.
+
+## Troubleshooting: "Não foi possível encontrar o módulo '@odontoflow/integration-*'"
+
+Mesma causa raiz do erro acima, um andar abaixo: `apps/api/src/modules/integrations/*-gateway.service.ts`
+importa `@odontoflow/integration-whatsapp`, `-nfe`, `-e-signature`,
+`-credit-score` e `-ai-assistant` — cada um desses pacotes aponta `main`/`types`
+para `dist/`, que só existe depois de rodar `tsc` dentro de cada um (`build`
+deles). Sem isso, os mesmos erros TS2307 aparecem, um por integração.
+
+Isso já está coberto pelo script `build` de `apps/api/package.json` (item 1
+acima). Se voltar a acontecer, o suspeito é o **filtro do pnpm**: o script
+roda com a pasta de trabalho em `apps/api/`, então um filtro por *caminho*
+(`--filter "./packages/integrations/*"`) resolve relativo a
+`apps/api/packages/integrations/*` — que não existe — e casa **zero
+pacotes**, silenciosamente, sem erro nem aviso algum (mesmo gotcha do
+`pnpm --filter` já visto no CI deste projeto). Por isso o filtro usado é por
+**nome** do pacote (`--filter "@odontoflow/integration-*"`), que não depende
+de cwd nenhum.
+
 ## Migrations em deploys futuros
 
 `prisma migrate deploy` roda dentro do `buildCommand` da API (ver

@@ -1,7 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
-import { extname, join } from "node:path";
-import { diskStorage } from "multer";
-import { randomUUID } from "node:crypto";
+import { memoryStorage } from "multer";
 
 /**
  * Documento clínico só faz sentido como imagem (radiografia/foto) ou PDF
@@ -23,46 +20,12 @@ export function documentFileFilter(
 }
 
 /**
- * Extensão do arquivo enviado, reduzida ao que é seguro pôr num caminho.
- *
- * O nome original NÃO pode entrar no caminho. `file.originalname` vem do
- * cabeçalho multipart e o multer não sanitiza nada: `"../../../etc/x.png"`
- * chega inteiro aqui, e o prefixo UUID não protege — `path.join` resolve o
- * `..` e o arquivo sai do diretório da clínica. O nome que a pessoa vê já é
- * guardado em `Document.fileName`, no banco, onde não vira caminho.
- *
- * Devolve string vazia quando não há extensão reconhecível; arquivo sem
- * extensão é servido pelo `Content-Type` guardado, então não se perde nada.
+ * Os bytes ficam só em memória (`file.buffer`) até o serviço gravá-los na
+ * coluna `Document.content`, no Postgres — nunca tocam o disco local, que é
+ * efêmero em qualquer host de container (Railway, Render, etc.) e some a
+ * cada redeploy. Trocar para object storage (R2/S3) no futuro significa
+ * mexer só em `DocumentsService.create`/`getFileForDownload`, não aqui.
  */
-export function extensaoSegura(originalname: string): string {
-  const extensao = extname(originalname).toLowerCase();
-  return /^\.[a-z0-9]{1,8}$/.test(extensao) ? extensao : "";
-}
-
-/**
- * Armazenamento local em disco — suficiente para dev/demo. Trocar por
- * Cloudflare R2 (free tier) quando for produção real (ver plano, seção
- * "Infraestrutura gratuita"); a troca fica isolada neste arquivo.
- */
-export const UPLOADS_ROOT = join(process.cwd(), "uploads");
-
-export function documentStorage() {
-  return diskStorage({
-    // Só usa `tenantId` (resolvido pelo TenantGuard antes do multer rodar) —
-    // nunca `req.body.patientId`, que multipart/form-data só termina de
-    // popular DEPOIS que o multer processa o campo "file" quando ele vem
-    // antes de "patientId" no form (ordem de campos importa em multipart).
-    // O vínculo com o paciente já fica registrado no Document.patientId.
-    destination: (req, _file, callback) => {
-      const clinicId = (req as unknown as { tenantId?: string }).tenantId ?? "unknown-clinic";
-      const dir = join(UPLOADS_ROOT, clinicId);
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-      }
-      callback(null, dir);
-    },
-    filename: (_req, file, callback) => {
-      callback(null, `${randomUUID()}${extensaoSegura(file.originalname)}`);
-    },
-  });
+export function documentMemoryStorage() {
+  return memoryStorage();
 }
