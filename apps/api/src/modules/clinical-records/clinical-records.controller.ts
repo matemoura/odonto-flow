@@ -14,6 +14,8 @@ import { UpsertPeriodontalEntryDto } from "./dto/upsert-periodontal-entry.dto";
 import { UpsertAnamnesisDto } from "./dto/upsert-anamnesis.dto";
 import { CreateTreatmentPlanOptionDto } from "./dto/create-treatment-plan-option.dto";
 import { UpdateTreatmentPlanOptionDto } from "./dto/update-treatment-plan-option.dto";
+import { CreateTreatmentPlanOptionItemDto } from "./dto/create-treatment-plan-option-item.dto";
+import { UpdateTreatmentPlanOptionItemDto } from "./dto/update-treatment-plan-option-item.dto";
 
 @Controller("clinical-records")
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -109,5 +111,33 @@ export class ClinicalRecordsController {
   @HttpCode(204)
   removeTreatmentPlanOption(@CurrentTenant() clinicId: string, @Param("id") id: string) {
     return this.records.removeTreatmentPlanOption(clinicId, id);
+  }
+
+  @Post("treatment-plan-options/:id/items")
+  addTreatmentPlanOptionItem(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Body() dto: CreateTreatmentPlanOptionItemDto,
+  ) {
+    return this.records.addTreatmentPlanOptionItem(clinicId, id, dto);
+  }
+
+  @Patch("treatment-plan-options/:id/items/:itemId")
+  updateTreatmentPlanOptionItem(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+    @Body() dto: UpdateTreatmentPlanOptionItemDto,
+  ) {
+    return this.records.updateTreatmentPlanOptionItem(clinicId, id, itemId, dto);
+  }
+
+  @Delete("treatment-plan-options/:id/items/:itemId")
+  removeTreatmentPlanOptionItem(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Param("itemId") itemId: string,
+  ) {
+    return this.records.removeTreatmentPlanOptionItem(clinicId, id, itemId);
   }
 }

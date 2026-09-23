@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import { TOOTH_ROWS, TOOTH_CONDITION_LABEL, type OdontogramEntry, type ToothCondition } from "../../../../../lib/api";
+import { ToothButton } from "./ToothButton";
 import s from "../../../admin.module.css";
 
 const CONDITION_COLOR: Record<ToothCondition, string> = {
@@ -69,28 +70,19 @@ export function OdontogramaSection({ patientId, entries }: { patientId: string; 
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, overflowX: "auto" }}>
         {TOOTH_ROWS.map((row, i) => (
-          <div key={i} style={{ display: "flex", gap: 4 }}>
+          <div key={i} style={{ display: "flex", gap: 2 }}>
             {row.map((tooth) => {
               const entry = byTooth.get(tooth);
               return (
-                <button
+                <ToothButton
                   key={tooth}
-                  type="button"
+                  tooth={tooth}
+                  invertido={i === 0}
+                  selecionado={selectedTooth === tooth}
                   onClick={() => selecionar(tooth)}
                   title={entry ? TOOTH_CONDITION_LABEL[entry.condition] : "Saudável (sem registro)"}
-                  style={{
-                    minWidth: 34,
-                    height: 34,
-                    borderRadius: "var(--r-sm)",
-                    border: selectedTooth === tooth ? "2px solid var(--consultorio)" : "1px solid var(--linha-forte)",
-                    background: entry ? CONDITION_COLOR[entry.condition] : "var(--branco)",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {tooth}
-                </button>
+                  color={entry ? CONDITION_COLOR[entry.condition] : "var(--branco)"}
+                />
               );
             })}
           </div>

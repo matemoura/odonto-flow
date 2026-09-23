@@ -1,5 +1,6 @@
-import type { AgendaAppointment } from "../../../lib/api";
+import type { AgendaAppointment, AppointmentLabel } from "../../../lib/api";
 import { AppointmentStatusButton } from "./AppointmentStatusButton";
+import { SeletorDeRotulo } from "./SeletorDeRotulo";
 import { statusLabel, toHHmm } from "./agenda-data";
 import s from "./agenda.module.css";
 
@@ -12,10 +13,12 @@ import s from "./agenda.module.css";
 export function ListaDeConsultas({
   appointments,
   timezone,
+  labels,
   vazio,
 }: {
   appointments: AgendaAppointment[];
   timezone: string;
+  labels: AppointmentLabel[];
   vazio: string;
 }) {
   if (appointments.length === 0) {
@@ -46,6 +49,7 @@ export function ListaDeConsultas({
             </span>
           </span>
           {item.source === "public-booking" ? <span className="chip chip--estatico">Veio do link</span> : null}
+          <SeletorDeRotulo appointmentId={item.id} currentLabelId={item.label?.id ?? null} labels={labels} />
           <AppointmentStatusButton
             appointmentId={item.id}
             patientId={item.patient.id}

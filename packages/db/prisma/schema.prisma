@@ -273,6 +273,7 @@ model Clinic {
   orthodonticTreatments OrthodonticTreatment[]
   facialPlannings       FacialPlanning[]
   prescriptions         Prescription[]
+  appointmentLabels     AppointmentLabel[]
 
   @@index([organizationId])
   @@map("clinics")
@@ -416,6 +417,12 @@ model Appointment {
   source         String            @default("internal") // internal | public-booking
   notes          String?
 
+  /// Rótulo colorido livre (ex.: "Retorno", "Urgência") — visual, não afeta
+  /// disponibilidade nem regra nenhuma de agenda. `SetNull` porque apagar um
+  /// rótulo do catálogo não pode apagar o agendamento que o usava.
+  labelId String?
+  label   AppointmentLabel? @relation(fields: [labelId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -425,6 +432,25 @@ model Appointment {
   @@index([clinicId, startAt])
   @@index([professionalId, startAt])
   @@map("appointments")
+}
+
+/// Catálogo de rótulos coloridos que a clínica define pra marcar consultas na
+/// agenda (ex.: "Retorno" verde, "Urgência" vermelho) — puramente visual.
+model AppointmentLabel {
+  id       String @id @default(cuid())
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name     String
+  /// Cor em hex ("#3B82F6"), validada na entrada (ver dto).
+  color    String
+
+  createdAt DateTime @default(now())
+
+  appointments Appointment[]
+
+  @@unique([clinicId, name])
+  @@index([clinicId])
+  @@map("appointment_labels")
 }
 
 /// Catálogo de procedimentos da clínica, usado em orçamentos.
@@ -442,10 +468,11 @@ model Procedure {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  budgetItems       BudgetItem[]
-  materials         ProcedureMaterial[]
-  prescriptionItems ProcedurePrescriptionItem[]
-  prescriptions     Prescription[]
+  budgetItems              BudgetItem[]
+  materials                ProcedureMaterial[]
+  prescriptionItems        ProcedurePrescriptionItem[]
+  prescriptions            Prescription[]
+  treatmentPlanOptionItems TreatmentPlanOptionItem[]
 
   @@index([clinicId])
   @@map("procedures")
@@ -521,7 +548,11 @@ model InventoryMovement {
   note            String?
   budgetItemId    String?
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  /// Só é setado quando um MANUAL_IN/MANUAL_OUT é corrigido depois de criado
+  /// (ver InventoryService.updateMovement) — RESERVED/RELEASED/CONSUMED nunca
+  /// são editados, são derivados do ciclo de vida do BudgetItem.
+  editedAt        DateTime?
 
   @@index([clinicId, inventoryItemId])
   @@map("inventory_movements")
@@ -694,6 +725,11 @@ model Anamnesis {
   treatmentConsentAt DateTime?
   /// Consentimento específico pra uso de imagem (fotos clínicas, antes/depois, faceograma).
   imageUseConsentAt  DateTime?
+  /// Assinatura (PNG em data URL) coletada na tela pra confirmar a declaração de
+  /// consentimento acima — mesmo mecanismo do ClinicalRecord.professionalSignature/
+  /// patientSignature, mas aqui é uma só, do paciente, cobrindo os dois consentimentos.
+  consentSignature   String?
+  consentSignedAt    DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -716,16 +752,36 @@ model TreatmentPlanOption {
   professionalId String?
   professional   Professional? @relation(fields: [professionalId], references: [id])
 
-  label              String
-  description        String
+  label       String
+  description String
+  /// Estimativa manual — só usada de fato quando a opção não tem nenhum
+  /// `TreatmentPlanOptionItem` vinculado. Com itens vinculados, o custo
+  /// mostrado na tela é sempre a soma deles (igual ao Budget), nunca este campo.
   estimatedCostCents Int?
   recommended        Boolean @default(false)
+
+  items TreatmentPlanOptionItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clinicId, patientId])
   @@map("treatment_plan_options")
+}
+
+/// Serviço (Procedure) vinculado a uma opção do plano de tratamento, com
+/// quantidade e preço — mesmo padrão do BudgetItem, mas para a fase de
+/// proposta/comparação (antes de virar orçamento de verdade).
+model TreatmentPlanOptionItem {
+  id                     String               @id @default(cuid())
+  treatmentPlanOptionId  String
+  treatmentPlanOption    TreatmentPlanOption  @relation(fields: [treatmentPlanOptionId], references: [id], onDelete: Cascade)
+  procedureId            String
+  procedure              Procedure            @relation(fields: [procedureId], references: [id])
+  quantity               Int                  @default(1)
+  unitPriceCents         Int
+
+  @@map("treatment_plan_option_items")
 }
 
 /// Imagem/documento do paciente (radiografia, foto, contrato). Armazenamento

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { Role } from "@odontoflow/db";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { TenantGuard } from "../../common/guards/tenant.guard";
@@ -10,6 +10,9 @@ import { SchedulingService } from "./scheduling.service";
 import { CreateAppointmentDto } from "./dto/create-appointment.dto";
 import { UpdateAppointmentStatusDto } from "./dto/update-appointment-status.dto";
 import { UpdateSchedulingSettingsDto } from "./dto/update-scheduling-settings.dto";
+import { CreateAppointmentLabelDto } from "./dto/create-appointment-label.dto";
+import { UpdateAppointmentLabelDto } from "./dto/update-appointment-label.dto";
+import { AssignAppointmentLabelDto } from "./dto/assign-appointment-label.dto";
 
 @Controller("scheduling")
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -56,5 +59,36 @@ export class SchedulingController {
     @Body() dto: UpdateAppointmentStatusDto,
   ) {
     return this.scheduling.updateStatus(clinicId, id, dto.status);
+  }
+
+  /** Catálogo de rótulos (leitura liberada pra equipe toda, edição só admin). */
+  @Get("labels")
+  listLabels(@CurrentTenant() clinicId: string) {
+    return this.scheduling.listLabels(clinicId);
+  }
+
+  @Post("labels")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  createLabel(@CurrentTenant() clinicId: string, @Body() dto: CreateAppointmentLabelDto) {
+    return this.scheduling.createLabel(clinicId, dto);
+  }
+
+  @Patch("labels/:id")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  updateLabel(@CurrentTenant() clinicId: string, @Param("id") id: string, @Body() dto: UpdateAppointmentLabelDto) {
+    return this.scheduling.updateLabel(clinicId, id, dto);
+  }
+
+  @Delete("labels/:id")
+  @HttpCode(204)
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  removeLabel(@CurrentTenant() clinicId: string, @Param("id") id: string) {
+    return this.scheduling.removeLabel(clinicId, id);
+  }
+
+  /** Aplicar/tirar um rótulo de uma consulta — qualquer papel da equipe pode. */
+  @Patch("appointments/:id/label")
+  assignLabel(@CurrentTenant() clinicId: string, @Param("id") id: string, @Body() dto: AssignAppointmentLabelDto) {
+    return this.scheduling.assignLabel(clinicId, id, dto);
   }
 }

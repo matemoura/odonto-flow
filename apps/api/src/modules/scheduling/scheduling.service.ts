@@ -16,6 +16,9 @@ import {
 import { formatZonedIsoDate, formatZonedTime, getZonedParts, zonedDateTimeToUtc } from "./timezone.util";
 import { CreatePublicAppointmentDto } from "./dto/create-public-appointment.dto";
 import { CreateAppointmentDto } from "./dto/create-appointment.dto";
+import { CreateAppointmentLabelDto } from "./dto/create-appointment-label.dto";
+import { UpdateAppointmentLabelDto } from "./dto/update-appointment-label.dto";
+import { AssignAppointmentLabelDto } from "./dto/assign-appointment-label.dto";
 import {
   ROTULO_STATUS,
   STATUS_QUE_OCUPAM_HORARIO,
@@ -402,9 +405,65 @@ export class SchedulingService {
       include: {
         patient: { select: { id: true, name: true } },
         professional: { select: { id: true, user: { select: { name: true } } } },
+        label: true,
       },
       orderBy: { startAt: "asc" },
     });
+  }
+
+  /* --- rótulos personalizados ------------------------------------------- */
+
+  listLabels(clinicId: string) {
+    return this.prisma.appointmentLabel.findMany({ where: { clinicId }, orderBy: { name: "asc" } });
+  }
+
+  async createLabel(clinicId: string, dto: CreateAppointmentLabelDto) {
+    const existente = await this.prisma.appointmentLabel.findUnique({
+      where: { clinicId_name: { clinicId, name: dto.name } },
+    });
+    if (existente) {
+      throw new BadRequestException("Já existe um rótulo com este nome.");
+    }
+    return this.prisma.appointmentLabel.create({ data: { clinicId, ...dto } });
+  }
+
+  async updateLabel(clinicId: string, id: string, dto: UpdateAppointmentLabelDto) {
+    await this.assertLabelExists(clinicId, id);
+    return this.prisma.appointmentLabel.update({ where: { id }, data: dto });
+  }
+
+  async removeLabel(clinicId: string, id: string) {
+    await this.assertLabelExists(clinicId, id);
+    // Não bloqueia a exclusão: `onDelete: SetNull` no schema já cuida de tirar
+    // o rótulo de qualquer consulta que o usava, sem apagar o agendamento.
+    await this.prisma.appointmentLabel.delete({ where: { id } });
+  }
+
+  async assignLabel(clinicId: string, appointmentId: string, dto: AssignAppointmentLabelDto) {
+    const appointment = await this.prisma.appointment.findFirst({ where: { id: appointmentId, clinicId } });
+    if (!appointment) {
+      throw new NotFoundException("Consulta não encontrada.");
+    }
+    if (dto.labelId) {
+      await this.assertLabelExists(clinicId, dto.labelId);
+    }
+    return this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { labelId: dto.labelId ?? null },
+      include: {
+        patient: { select: { id: true, name: true } },
+        professional: { select: { id: true, user: { select: { name: true } } } },
+        label: true,
+      },
+    });
+  }
+
+  private async assertLabelExists(clinicId: string, id: string) {
+    const label = await this.prisma.appointmentLabel.findFirst({ where: { id, clinicId } });
+    if (!label) {
+      throw new NotFoundException("Rótulo não encontrado.");
+    }
+    return label;
   }
 
   /** Id do `Professional` do usuário quando ele é DENTIST nesta clínica; nulo para os demais. */

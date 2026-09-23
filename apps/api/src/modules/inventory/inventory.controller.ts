@@ -10,6 +10,7 @@ import { InventoryReportService } from "./inventory-report.service";
 import { CreateInventoryItemDto } from "./dto/create-inventory-item.dto";
 import { UpdateInventoryItemDto } from "./dto/update-inventory-item.dto";
 import { AdjustInventoryItemDto } from "./dto/adjust-inventory-item.dto";
+import { UpdateInventoryMovementDto } from "./dto/update-inventory-movement.dto";
 
 @Controller("inventory-items")
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -49,6 +50,17 @@ export class InventoryController {
   @Get(":id/movements")
   listMovements(@CurrentTenant() clinicId: string, @Param("id") id: string) {
     return this.inventory.listMovements(clinicId, id);
+  }
+
+  @Patch(":id/movements/:movementId")
+  @Roles(Role.CLINIC_ADMIN, Role.ORG_ADMIN)
+  updateMovement(
+    @CurrentTenant() clinicId: string,
+    @Param("id") id: string,
+    @Param("movementId") movementId: string,
+    @Body() dto: UpdateInventoryMovementDto,
+  ) {
+    return this.inventory.updateMovement(clinicId, id, movementId, dto);
   }
 
   @Post()

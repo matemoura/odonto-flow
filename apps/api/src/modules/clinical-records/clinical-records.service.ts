@@ -7,6 +7,8 @@ import { UpsertPeriodontalEntryDto } from "./dto/upsert-periodontal-entry.dto";
 import { UpsertAnamnesisDto } from "./dto/upsert-anamnesis.dto";
 import { CreateTreatmentPlanOptionDto } from "./dto/create-treatment-plan-option.dto";
 import { UpdateTreatmentPlanOptionDto } from "./dto/update-treatment-plan-option.dto";
+import { CreateTreatmentPlanOptionItemDto } from "./dto/create-treatment-plan-option-item.dto";
+import { UpdateTreatmentPlanOptionItemDto } from "./dto/update-treatment-plan-option-item.dto";
 
 @Injectable()
 export class ClinicalRecordsService {
@@ -117,7 +119,7 @@ export class ClinicalRecordsService {
 
   async upsertAnamnesis(clinicId: string, actorUserId: string, dto: UpsertAnamnesisDto) {
     await this.assertProfessional(clinicId, actorUserId);
-    const { patientId, treatmentConsent, imageUseConsent, ...fields } = dto;
+    const { patientId, treatmentConsent, imageUseConsent, consentSignature, ...fields } = dto;
     // `Anamnesis.patientId` é único GLOBAL, então o upsert abaixo alcança a
     // linha de qualquer clínica. Sem esta checagem ele devolvia (e regravava)
     // o prontuário de paciente de outra clínica.
@@ -140,17 +142,28 @@ export class ClinicalRecordsService {
             : null,
     };
 
+    // A assinatura só é regravada quando o paciente desenha uma nova — resalvar
+    // a ficha sem tocar no traço preserva a que já estava lá, em vez de apagá-la.
+    const signatureFields = consentSignature
+      ? { consentSignature, consentSignedAt: existing?.consentSignedAt ?? new Date() }
+      : {};
+
     return this.prisma.anamnesis.upsert({
       where: { patientId },
-      update: { ...fields, ...consentTimestamps },
-      create: { clinicId, patientId, ...fields, ...consentTimestamps },
+      update: { ...fields, ...consentTimestamps, ...signatureFields },
+      create: { clinicId, patientId, ...fields, ...consentTimestamps, ...signatureFields },
     });
   }
+
+  private readonly TREATMENT_PLAN_OPTION_INCLUDE = {
+    professional: { select: { user: { select: { name: true } } } },
+    items: { include: { procedure: true } },
+  } as const;
 
   listTreatmentPlanOptions(clinicId: string, patientId: string) {
     return this.prisma.treatmentPlanOption.findMany({
       where: { clinicId, patientId },
-      include: { professional: { select: { user: { select: { name: true } } } } },
+      include: this.TREATMENT_PLAN_OPTION_INCLUDE,
       orderBy: { createdAt: "asc" },
     });
   }
@@ -159,7 +172,7 @@ export class ClinicalRecordsService {
     await assertPacienteDaClinica(this.prisma, clinicId, dto.patientId);
     return this.prisma.treatmentPlanOption.create({
       data: { clinicId, ...dto },
-      include: { professional: { select: { user: { select: { name: true } } } } },
+      include: this.TREATMENT_PLAN_OPTION_INCLUDE,
     });
   }
 
@@ -168,7 +181,7 @@ export class ClinicalRecordsService {
     return this.prisma.treatmentPlanOption.update({
       where: { id },
       data: dto,
-      include: { professional: { select: { user: { select: { name: true } } } } },
+      include: this.TREATMENT_PLAN_OPTION_INCLUDE,
     });
   }
 
@@ -177,11 +190,65 @@ export class ClinicalRecordsService {
     await this.prisma.treatmentPlanOption.delete({ where: { id } });
   }
 
+  /** Vincula um serviço cadastrado à opção — mesmo padrão do BudgetItem (preço vem do serviço se não informado). */
+  async addTreatmentPlanOptionItem(clinicId: string, optionId: string, dto: CreateTreatmentPlanOptionItemDto) {
+    await this.assertTreatmentPlanOptionExists(clinicId, optionId);
+    const procedure = await this.prisma.procedure.findFirst({ where: { id: dto.procedureId, clinicId } });
+    if (!procedure) {
+      throw new NotFoundException("Serviço não encontrado.");
+    }
+    await this.prisma.treatmentPlanOptionItem.create({
+      data: {
+        treatmentPlanOptionId: optionId,
+        procedureId: dto.procedureId,
+        quantity: dto.quantity ?? 1,
+        unitPriceCents: dto.unitPriceCents ?? procedure.defaultPriceCents,
+      },
+    });
+    return this.prisma.treatmentPlanOption.findFirst({
+      where: { id: optionId },
+      include: this.TREATMENT_PLAN_OPTION_INCLUDE,
+    });
+  }
+
+  async updateTreatmentPlanOptionItem(
+    clinicId: string,
+    optionId: string,
+    itemId: string,
+    dto: UpdateTreatmentPlanOptionItemDto,
+  ) {
+    await this.assertTreatmentPlanOptionItemExists(clinicId, optionId, itemId);
+    await this.prisma.treatmentPlanOptionItem.update({ where: { id: itemId }, data: dto });
+    return this.prisma.treatmentPlanOption.findFirst({
+      where: { id: optionId },
+      include: this.TREATMENT_PLAN_OPTION_INCLUDE,
+    });
+  }
+
+  async removeTreatmentPlanOptionItem(clinicId: string, optionId: string, itemId: string) {
+    await this.assertTreatmentPlanOptionItemExists(clinicId, optionId, itemId);
+    await this.prisma.treatmentPlanOptionItem.delete({ where: { id: itemId } });
+    return this.prisma.treatmentPlanOption.findFirst({
+      where: { id: optionId },
+      include: this.TREATMENT_PLAN_OPTION_INCLUDE,
+    });
+  }
+
   private async assertTreatmentPlanOptionExists(clinicId: string, id: string) {
     const option = await this.prisma.treatmentPlanOption.findFirst({ where: { id, clinicId } });
     if (!option) {
       throw new NotFoundException("Opção de plano de tratamento não encontrada.");
     }
     return option;
+  }
+
+  private async assertTreatmentPlanOptionItemExists(clinicId: string, optionId: string, itemId: string) {
+    const item = await this.prisma.treatmentPlanOptionItem.findFirst({
+      where: { id: itemId, treatmentPlanOptionId: optionId, treatmentPlanOption: { clinicId } },
+    });
+    if (!item) {
+      throw new NotFoundException("Serviço não encontrado nesta opção do plano de tratamento.");
+    }
+    return item;
   }
 }

@@ -5,8 +5,14 @@ e um Postgres. No Railway isso vira **um projeto com três serviços**: o
 Postgres (plugin) e os dois apps, cada um configurado por um dos arquivos na
 raiz do repo (`railway.api.toml`, `railway.web.toml`).
 
-Este arquivo nunca foi seguido num deploy real — o primeiro deploy é o teste
-dele. Se algo falhar, o log de build/deploy do Railway diz onde.
+O projeto real (`OdontoFlow` no Railway) não usa este passo a passo — os dois
+serviços foram criados direto pelo dashboard, sem **Config-as-code file path**
+apontado pra `railway.api.toml`/`railway.web.toml`. Confirmado em 23/09/2026
+com `railway config pull`: o `buildCommand` de verdade era só `pnpm --filter
+@odontoflow/api build`, sem o passo de migration nenhum. Se for configurar um
+serviço novo do zero, siga este guia; se for mexer no que já existe, mexa
+direto nas Settings do serviço no dashboard (ou via `railway config
+apply`/`pull`, que exige `npm install railway` — o pacote do SDK de IaC).
 
 ## 1. Banco de dados
 
@@ -99,10 +105,10 @@ Duas camadas de proteção contra isso:
    @odontoflow/db generate && pnpm --filter "@odontoflow/integration-*" build
    && nest build`, então ele sempre gera o client e compila os pacotes de
    integração sozinho, não importa qual comando externo o dispare.
-2. Ainda assim, confirme que **Config-as-code file path** está de fato
-   apontando para `railway.api.toml` nas Settings do serviço — sem isso, o
-   `prisma migrate deploy` (que só existe dentro do `buildCommand` deste
-   arquivo) nunca roda, e o banco de produção nunca recebe as migrations.
+2. `prisma migrate deploy` não depende deste risco — desde 23/09/2026 ele vive
+   em **Settings → Deploy → Pre-Deploy Command**, não no `buildCommand`, então
+   roda independente de qual comando de build o Railpack decidir usar. Ver
+   "Migrations em deploys futuros" abaixo.
 
 ## Troubleshooting: "Não foi possível encontrar o módulo '@odontoflow/integration-*'"
 
@@ -124,13 +130,16 @@ de cwd nenhum.
 
 ## Migrations em deploys futuros
 
-`prisma migrate deploy` roda dentro do `buildCommand` da API (ver
-`railway.api.toml`), não num pre-deploy separado. Enquanto as migrations
-forem só aditivas isso é inofensivo — elas rodam mesmo que o deploy falhe
-depois. No dia em que uma migration remover coluna ou tabela, mova esse passo
-para **Settings → Deploy → Pre-Deploy Command** do serviço da API (aplica a
-migration só se o build passou, antes de trocar o container em produção) ou
-rode a migration à mão antes do deploy.
+`prisma migrate deploy` roda em **Settings → Deploy → Pre-Deploy Command** do
+serviço da API, **nunca** no `buildCommand` — testado ao vivo em 23/09/2026 e
+confirmado quebrado: o container de build do Railway não tem acesso à rede
+privada (`postgres.railway.internal`), só o container de deploy tem, então
+`prisma migrate deploy` no build sempre falha com `P1001: Can't reach
+database server`, migration aditiva ou não. O Pre-Deploy Command roda depois
+do build (que já passou) e antes de trocar o container em produção, com a
+rede privada disponível.
+
+Valor do campo: `pnpm --filter @odontoflow/db exec prisma migrate deploy`.
 
 ## Object storage (pendência conhecida, não resolvida por este deploy)
 

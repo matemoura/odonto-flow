@@ -6,6 +6,102 @@ import { Button } from "@odontoflow/ui";
 import type { InventoryItem, InventoryMovement } from "../../../../lib/api";
 import s from "../../admin.module.css";
 
+const MOVIMENTOS_EDITAVEIS: InventoryMovement["type"][] = ["MANUAL_IN", "MANUAL_OUT"];
+
+function MovimentoRow({ itemId, movimento }: { itemId: string; movimento: InventoryMovement }) {
+  const router = useRouter();
+  const [editando, setEditando] = useState(false);
+  const [quantity, setQuantity] = useState(movimento.quantity);
+  const [note, setNote] = useState(movimento.note ?? "");
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  const editavel = MOVIMENTOS_EDITAVEIS.includes(movimento.type);
+
+  async function handleSalvar() {
+    setErro(null);
+    setSalvando(true);
+    try {
+      const res = await fetch(`/api/staff/inventory-items/${itemId}/movements/${movimento.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ quantity, note: note || undefined }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? "Não foi possível corrigir esta movimentação.");
+      }
+      setEditando(false);
+      router.refresh();
+    } catch (error) {
+      setErro(error instanceof Error ? error.message : "Não foi possível corrigir esta movimentação.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (editando) {
+    return (
+      <tr>
+        <td>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(movimento.createdAt))}</td>
+        <td>{ROTULO_MOVIMENTO[movimento.type]}</td>
+        <td>
+          <input
+            type="number"
+            min={1}
+            className={s.input}
+            style={{ maxWidth: 90, padding: "4px 8px" }}
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+          />
+        </td>
+        <td colSpan={2}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              className={s.input}
+              style={{ minWidth: 140, padding: "4px 8px" }}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Observação"
+            />
+            <button type="button" className="odontoflow-btn odontoflow-btn--secondary odontoflow-btn--sm" disabled={salvando} onClick={handleSalvar}>
+              Salvar
+            </button>
+            <button
+              type="button"
+              className="odontoflow-btn odontoflow-btn--ghost odontoflow-btn--sm"
+              disabled={salvando}
+              onClick={() => setEditando(false)}
+            >
+              Cancelar
+            </button>
+            {erro ? <span style={{ fontSize: 11.5, color: "var(--ameixa)" }}>{erro}</span> : null}
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <td>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(movimento.createdAt))}</td>
+      <td>{ROTULO_MOVIMENTO[movimento.type]}</td>
+      <td>{movimento.quantity}</td>
+      <td>
+        {movimento.note ?? "—"}
+        {movimento.editedAt ? <span style={{ fontSize: 11, color: "var(--tinta-55)" }}> (corrigido)</span> : null}
+      </td>
+      <td>
+        {editavel ? (
+          <button type="button" className="odontoflow-btn odontoflow-btn--ghost odontoflow-btn--sm" onClick={() => setEditando(true)}>
+            Editar
+          </button>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
 function formatCents(cents: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
@@ -236,16 +332,12 @@ export function ItemEstoqueDetail({ item, movements }: { item: InventoryItem; mo
                   <th>Tipo</th>
                   <th>Quantidade</th>
                   <th>Observação</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {movements.map((mov) => (
-                  <tr key={mov.id}>
-                    <td>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(mov.createdAt))}</td>
-                    <td>{ROTULO_MOVIMENTO[mov.type]}</td>
-                    <td>{mov.quantity}</td>
-                    <td>{mov.note ?? "—"}</td>
-                  </tr>
+                  <MovimentoRow key={mov.id} itemId={item.id} movimento={mov} />
                 ))}
               </tbody>
             </table>

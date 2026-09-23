@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import { TOOTH_ROWS, type PeriodontalEntry } from "../../../../../lib/api";
+import { ToothButton } from "./ToothButton";
 import s from "../../../admin.module.css";
 
 function alertaDoDente(entry: PeriodontalEntry | undefined) {
@@ -94,29 +95,20 @@ export function PeriogramaSection({ patientId, entries }: { patientId: string; e
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, overflowX: "auto" }}>
         {TOOTH_ROWS.map((row, i) => (
-          <div key={i} style={{ display: "flex", gap: 4 }}>
+          <div key={i} style={{ display: "flex", gap: 2 }}>
             {row.map((tooth) => {
               const entry = byTooth.get(tooth);
               const alerta = alertaDoDente(entry);
               return (
-                <button
+                <ToothButton
                   key={tooth}
-                  type="button"
+                  tooth={tooth}
+                  invertido={i === 0}
+                  selecionado={selectedTooth === tooth}
                   onClick={() => selecionar(tooth)}
                   title={alerta ? "Sondagem ≥4mm ou sangramento" : "Sem alteração registrada"}
-                  style={{
-                    minWidth: 34,
-                    height: 34,
-                    borderRadius: "var(--r-sm)",
-                    border: selectedTooth === tooth ? "2px solid var(--consultorio)" : "1px solid var(--linha-forte)",
-                    background: alerta ? "var(--ameixa-suave)" : entry ? "var(--menta)" : "var(--branco)",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {tooth}
-                </button>
+                  color={alerta ? "var(--ameixa-suave)" : entry ? "var(--menta)" : "var(--branco)"}
+                />
               );
             })}
           </div>

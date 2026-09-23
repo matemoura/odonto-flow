@@ -5,6 +5,7 @@ import { zonedPeriodBoundsUtc } from "../scheduling/timezone.util";
 import { CreateInventoryItemDto } from "./dto/create-inventory-item.dto";
 import { UpdateInventoryItemDto } from "./dto/update-inventory-item.dto";
 import { AdjustInventoryItemDto } from "./dto/adjust-inventory-item.dto";
+import { UpdateInventoryMovementDto } from "./dto/update-inventory-movement.dto";
 
 /** Item de estoque que um procedimento consome, já com o join carregado. */
 type ProcedureMaterialWithItem = { inventoryItemId: string; quantityUsed: number };
@@ -99,6 +100,46 @@ export class InventoryService {
       where: { clinicId, inventoryItemId: id },
       orderBy: { createdAt: "desc" },
     });
+  }
+
+  /**
+   * Corrige um lançamento manual depois de criado (ex.: quantidade digitada
+   * errada). Só MANUAL_IN/MANUAL_OUT podem ser editados — RESERVED/RELEASED/
+   * CONSUMED são espelho do ciclo de vida de um BudgetItem (ver
+   * reserveForBudgetItem/releaseForBudgetItem/consumeForBudgetItem); editá-los
+   * por fora desencontraria o histórico do orçamento do estado real do estoque.
+   * `quantityOnHand` é um contador (não derivado somando os movimentos, ver
+   * `adjust`), então a correção reaplica só a DIFERENÇA entre a quantidade
+   * antiga e a nova, na mesma direção (IN soma, OUT subtrai).
+   */
+  async updateMovement(clinicId: string, itemId: string, movementId: string, dto: UpdateInventoryMovementDto) {
+    const item = await this.assertExists(clinicId, itemId);
+    const movement = await this.prisma.inventoryMovement.findFirst({
+      where: { id: movementId, clinicId, inventoryItemId: itemId },
+    });
+    if (!movement) {
+      throw new NotFoundException("Movimentação não encontrada.");
+    }
+    if (movement.type !== InventoryMovementType.MANUAL_IN && movement.type !== InventoryMovementType.MANUAL_OUT) {
+      throw new BadRequestException("Só é possível editar entradas/saídas manuais.");
+    }
+
+    const newQuantity = dto.quantity ?? movement.quantity;
+    const sign = movement.type === InventoryMovementType.MANUAL_IN ? 1 : -1;
+    const delta = sign * (newQuantity - movement.quantity);
+    const newQuantityOnHand = item.quantityOnHand + delta;
+    if (newQuantityOnHand < 0) {
+      throw new BadRequestException("Essa correção deixaria o estoque negativo.");
+    }
+
+    const [, updatedMovement] = await this.prisma.$transaction([
+      this.prisma.inventoryItem.update({ where: { id: itemId }, data: { quantityOnHand: { increment: delta } } }),
+      this.prisma.inventoryMovement.update({
+        where: { id: movementId },
+        data: { quantity: newQuantity, note: dto.note, editedAt: new Date() },
+      }),
+    ]);
+    return updatedMovement;
   }
 
   /**

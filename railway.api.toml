@@ -8,8 +8,10 @@
 # Veja RAILWAY.md para o passo a passo completo (banco, variáveis, ordem dos
 # serviços, criação do super-admin).
 #
-# AVISO: este arquivo nunca foi usado num deploy real. O primeiro deploy é o
-# teste dele — se algo falhar, o log de build do Railway diz onde.
+# AVISO: este arquivo documenta a config real do serviço, mas o serviço em si
+# foi criado direto pelo dashboard (config-as-code do próprio Railway, em
+# `.railway/railway.ts` gerado por `railway config pull` — não este arquivo),
+# então uma mudança aqui não afeta produção sozinha. Ver RAILWAY.md.
 
 [build]
 builder = "NIXPACKS"
@@ -23,23 +25,21 @@ builder = "NIXPACKS"
 # `--filter=@odontoflow/api...` (com as três reticências) constrói a API e
 # tudo de que ela depende, sem construir o front — trabalho jogado fora aqui.
 #
-# `prisma migrate deploy` está no build, não num pre-deploy command separado,
-# pelo mesmo motivo do antigo blueprint do Render: enquanto as migrations
-# forem só aditivas isso é inofensivo. No dia em que uma migration remover
-# coluna, mova este passo para "Deploy > Pre-Deploy Command" nas Settings do
-# serviço (esse recurso já existe no Railway, diferente do plano free do
-# Render de antes) ou rode a migration à mão antes do deploy.
-#
-# `npm i -g corepack@latest` antes do `corepack enable`: o corepack embutido
-# no Node às vezes traz a lista de chaves de assinatura do registry congelada
-# e morre com "Cannot find matching keyid" ao baixar um pnpm recente — na
-# PRIMEIRA linha do build, antes de instalar qualquer coisa. Mantido aqui por
-# segurança (o mesmo problema já apareceu no Render); se o build do Railway
-# não precisar, essa linha é só um no-op inofensivo.
-buildCommand = "npm i -g corepack@latest && corepack enable && pnpm install --frozen-lockfile && pnpm db:generate && pnpm turbo run build --filter=@odontoflow/api... && pnpm --filter @odontoflow/db exec prisma migrate deploy"
+# `prisma migrate deploy` NÃO pode entrar aqui. Testado ao vivo em 23/09/2026:
+# o build falhou com `P1001: Can't reach database server at
+# postgres.railway.internal:5432` — o container de BUILD do Railway não tem
+# acesso à rede privada (`*.railway.internal`), só o container de DEPLOY tem.
+# A suposição antiga (copiada do blueprint do Render, nunca testada aqui) de
+# que bastava a migration ser aditiva pra ser "inofensiva" no build estava
+# errada: o problema não é o tipo de migration, é que a conexão nem abre.
+# A migration precisa rodar em **Settings → Deploy → Pre-Deploy Command**
+# (`preDeployCommand` abaixo) — roda depois do build, antes de trocar o
+# container em produção, e nesse momento a rede privada já está disponível.
+buildCommand = "npm i -g corepack@latest && corepack enable && pnpm install --frozen-lockfile && pnpm db:generate && pnpm turbo run build --filter=@odontoflow/api..."
 
 [deploy]
 startCommand = "pnpm --filter @odontoflow/api start"
+preDeployCommand = "pnpm --filter @odontoflow/db exec prisma migrate deploy"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

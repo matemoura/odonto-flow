@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getAgenda, getPublicClinic } from "../../../lib/api";
+import { getAgenda, getAppointmentLabels, getPublicClinic } from "../../../lib/api";
 import { getStaffSession } from "../../../lib/session";
 import { AppointmentStatusButton } from "./AppointmentStatusButton";
+import { AtualizacaoAutomatica } from "./AtualizacaoAutomatica";
 import { IlhaAtendimento } from "./IlhaAtendimento";
 import { AgendaNavegacao } from "./AgendaNavegacao";
 import { ListaDeConsultas } from "./ListaDeConsultas";
+import { SeletorDeRotulo } from "./SeletorDeRotulo";
 import {
   agruparPorDia,
   buildAgendaView,
@@ -88,6 +90,8 @@ export default async function AgendaPage({
     );
   }
 
+  const labels = await getAppointmentLabels(session.clinicSlug, session.token).catch(() => []);
+
   const { hoje, emAndamento, proximas, linhaDoDia } = buildAgendaView(appointments, now, timezone);
 
   const diasDaSemana = Array.from({ length: totalDeDias }, (_, i) => somarDias(primeiroDia, i));
@@ -108,6 +112,10 @@ export default async function AgendaPage({
           </p>
         </div>
         <div className={s.acoes}>
+          <AtualizacaoAutomatica />
+          <Link href="/agenda/rotulos" className="odontoflow-btn odontoflow-btn--ghost odontoflow-btn--sm">
+            Gerenciar rótulos
+          </Link>
           <Link href="/pacientes" className="odontoflow-btn odontoflow-btn--secondary">
             Buscar paciente
           </Link>
@@ -227,6 +235,7 @@ export default async function AgendaPage({
                 {item.source === "public-booking" ? (
                   <span className="chip chip--estatico">Veio do link</span>
                 ) : null}
+                <SeletorDeRotulo appointmentId={item.id} currentLabelId={item.label?.id ?? null} labels={labels} />
                 <AppointmentStatusButton
                   appointmentId={item.id}
                   patientId={item.patient.id}
@@ -254,7 +263,7 @@ export default async function AgendaPage({
                     {doDia.length} consulta{doDia.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <ListaDeConsultas appointments={doDia} timezone={timezone} vazio="Sem consultas neste dia." />
+                <ListaDeConsultas appointments={doDia} timezone={timezone} labels={labels} vazio="Sem consultas neste dia." />
               </article>
             );
           })}
@@ -270,6 +279,7 @@ export default async function AgendaPage({
           <ListaDeConsultas
             appointments={appointments}
             timezone={timezone}
+            labels={labels}
             vazio="Nenhuma consulta marcada para este dia."
           />
         </section>

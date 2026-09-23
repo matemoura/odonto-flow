@@ -6,6 +6,7 @@ import {
   getOdontogram,
   getPatient,
   getPeriodontogram,
+  getProcedures,
   getStaffProfessionals,
   getTreatmentPlanOptions,
 } from "../../../../../lib/api";
@@ -39,12 +40,13 @@ export default async function AnamnesePage({ params }: { params: Promise<{ id: s
     );
   }
 
-  const [anamnesis, odontogram, periodontogram, treatmentPlanOptions, professionals] = await Promise.all([
+  const [anamnesis, odontogram, periodontogram, treatmentPlanOptions, professionals, procedures] = await Promise.all([
     getAnamnesis(session.clinicSlug, session.token, id).catch(() => null),
     getOdontogram(session.clinicSlug, session.token, id).catch(() => []),
     getPeriodontogram(session.clinicSlug, session.token, id).catch(() => []),
     getTreatmentPlanOptions(session.clinicSlug, session.token, id).catch(() => []),
     getStaffProfessionals(session.clinicSlug, session.token).catch(() => []),
+    getProcedures(session.clinicSlug, session.token).catch(() => []),
   ]);
 
   return (
@@ -84,7 +86,12 @@ export default async function AnamnesePage({ params }: { params: Promise<{ id: s
       <hr style={{ border: 0, borderTop: "1px solid var(--linha)", margin: "8px 0" }} />
       <section>
         <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Plano de tratamento</h2>
-        <PlanoTratamentoSection patientId={id} options={treatmentPlanOptions} professionals={professionals} />
+        <PlanoTratamentoSection
+          patientId={id}
+          options={treatmentPlanOptions}
+          professionals={professionals}
+          procedures={procedures}
+        />
       </section>
     </div>
   );

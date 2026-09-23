@@ -92,4 +92,10 @@ export class UpsertAnamnesisDto {
   @IsOptional()
   @IsBoolean()
   imageUseConsent?: boolean;
+
+  /// PNG em data URL, desenhada na hora — mesmo formato do
+  /// ClinicalRecord.professionalSignature/patientSignature.
+  @IsOptional()
+  @IsString()
+  consentSignature?: string;
 }

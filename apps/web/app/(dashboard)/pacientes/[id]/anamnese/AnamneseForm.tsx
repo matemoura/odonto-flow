@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@odontoflow/ui";
 import type { Anamnesis } from "../../../../../lib/api";
+import { SignaturePad, type SignaturePadHandle } from "../../../agenda/SignaturePad";
 import s from "../../../admin.module.css";
 
 function Checkbox({
@@ -54,6 +55,7 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
 
   const [treatmentConsent, setTreatmentConsent] = useState(!!initial?.treatmentConsentAt);
   const [imageUseConsent, setImageUseConsent] = useState(!!initial?.imageUseConsentAt);
+  const assinaturaRef = useRef<SignaturePadHandle>(null);
 
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
@@ -63,8 +65,19 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
     event.preventDefault();
     setErro(null);
     setSucesso(false);
+
+    const precisaAssinatura = treatmentConsent || imageUseConsent;
+    const jaTemAssinatura = !!initial?.consentSignature;
+    if (precisaAssinatura && assinaturaRef.current?.isEmpty() && !jaTemAssinatura) {
+      setErro("Colete a assinatura do paciente para confirmar o consentimento.");
+      return;
+    }
+
     setEnviando(true);
     try {
+      const consentSignature = assinaturaRef.current && !assinaturaRef.current.isEmpty()
+        ? assinaturaRef.current.toDataUrl()
+        : undefined;
       const res = await fetch("/api/staff/clinical-records/anamnesis", {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -92,6 +105,7 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
           oralHygieneNotes: oralHygieneNotes || undefined,
           treatmentConsent,
           imageUseConsent,
+          consentSignature,
         }),
       });
       if (!res.ok) {
@@ -275,6 +289,32 @@ export function AnamneseForm({ patientId, initial }: { patientId: string; initia
           )}
           .
         </p>
+      ) : null}
+
+      {treatmentConsent || imageUseConsent ? (
+        <div className={s.campo}>
+          <label className={s.rotuloCampo}>Assinatura do paciente</label>
+          {initial?.consentSignature ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={initial.consentSignature}
+                alt="Assinatura já registrada"
+                style={{ maxWidth: 300, border: "1px solid var(--linha)", borderRadius: "var(--r-sm)", background: "#fff" }}
+              />
+              <span style={{ fontSize: 11.5, color: "var(--tinta-55)" }}>
+                Assinada em{" "}
+                {initial.consentSignedAt
+                  ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(
+                      new Date(initial.consentSignedAt),
+                    )
+                  : "—"}
+                . Desenhe abaixo só se precisar coletar uma nova assinatura.
+              </span>
+            </div>
+          ) : null}
+          <SignaturePad ref={assinaturaRef} />
+        </div>
       ) : null}
 
       <div>

@@ -67,6 +67,8 @@ export type AppointmentStatus =
   | "COMPLETED"
   | "NO_SHOW";
 
+export type AppointmentLabel = { id: string; name: string; color: string };
+
 export type AgendaAppointment = {
   id: string;
   startAt: string;
@@ -75,6 +77,7 @@ export type AgendaAppointment = {
   source: string;
   patient: { id: string; name: string };
   professional: { id: string; user: { name: string } };
+  label: AppointmentLabel | null;
 };
 
 export type Patient = {
@@ -399,6 +402,47 @@ export function updateAppointmentStatus(
   });
 }
 
+/* --- rótulos personalizados da agenda --------------------------------------- */
+
+export function getAppointmentLabels(clinicSlug: string, token: string) {
+  return request<AppointmentLabel[]>("/scheduling/labels", { clinicSlug, token });
+}
+
+export function createAppointmentLabel(
+  clinicSlug: string,
+  token: string,
+  input: { name: string; color: string },
+) {
+  return request<AppointmentLabel>("/scheduling/labels", { clinicSlug, token, method: "POST", body: input });
+}
+
+export function updateAppointmentLabel(
+  clinicSlug: string,
+  token: string,
+  id: string,
+  input: Partial<{ name: string; color: string }>,
+) {
+  return request<AppointmentLabel>(`/scheduling/labels/${id}`, { clinicSlug, token, method: "PATCH", body: input });
+}
+
+export function deleteAppointmentLabel(clinicSlug: string, token: string, id: string) {
+  return request<void>(`/scheduling/labels/${id}`, { clinicSlug, token, method: "DELETE" });
+}
+
+export function assignAppointmentLabel(
+  clinicSlug: string,
+  token: string,
+  appointmentId: string,
+  labelId: string | null,
+) {
+  return request<AgendaAppointment>(`/scheduling/appointments/${appointmentId}/label`, {
+    clinicSlug,
+    token,
+    method: "PATCH",
+    body: { labelId },
+  });
+}
+
 /* --- pacientes (staff) -------------------------------------------------------- */
 
 /** Uma página de resultados, com o total para a tela poder dizer "1 de 12". */
@@ -636,6 +680,9 @@ export type Anamnesis = {
   oralHygieneNotes: string | null;
   treatmentConsentAt: string | null;
   imageUseConsentAt: string | null;
+  /** PNG em data URL — assinatura do paciente confirmando a declaração de consentimento. */
+  consentSignature: string | null;
+  consentSignedAt: string | null;
 } | null;
 
 export function getAnamnesis(clinicSlug: string, token: string, patientId: string) {
@@ -645,13 +692,24 @@ export function getAnamnesis(clinicSlug: string, token: string, patientId: strin
 export function upsertAnamnesis(
   clinicSlug: string,
   token: string,
-  input: { patientId: string } & Partial<Omit<NonNullable<Anamnesis>, "treatmentConsentAt" | "imageUseConsentAt">> & {
+  input: { patientId: string } & Partial<
+    Omit<NonNullable<Anamnesis>, "treatmentConsentAt" | "imageUseConsentAt" | "consentSignature" | "consentSignedAt">
+  > & {
       treatmentConsent?: boolean;
       imageUseConsent?: boolean;
+      consentSignature?: string;
     },
 ) {
   return request<Anamnesis>("/clinical-records/anamnesis", { clinicSlug, token, method: "PUT", body: input });
 }
+
+export type TreatmentPlanOptionItem = {
+  id: string;
+  procedureId: string;
+  procedure: { id: string; name: string; defaultPriceCents: number };
+  quantity: number;
+  unitPriceCents: number;
+};
 
 export type TreatmentPlanOption = {
   id: string;
@@ -661,6 +719,7 @@ export type TreatmentPlanOption = {
   recommended: boolean;
   professionalId: string | null;
   professional: { user: { name: string } } | null;
+  items: TreatmentPlanOptionItem[];
   createdAt: string;
 };
 
@@ -713,6 +772,43 @@ export function updateTreatmentPlanOption(
 
 export function deleteTreatmentPlanOption(clinicSlug: string, token: string, id: string) {
   return request<void>(`/clinical-records/treatment-plan-options/${id}`, { clinicSlug, token, method: "DELETE" });
+}
+
+export function addTreatmentPlanOptionItem(
+  clinicSlug: string,
+  token: string,
+  optionId: string,
+  input: { procedureId: string; quantity?: number; unitPriceCents?: number },
+) {
+  return request<TreatmentPlanOption>(`/clinical-records/treatment-plan-options/${optionId}/items`, {
+    clinicSlug,
+    token,
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateTreatmentPlanOptionItem(
+  clinicSlug: string,
+  token: string,
+  optionId: string,
+  itemId: string,
+  input: Partial<{ quantity: number; unitPriceCents: number }>,
+) {
+  return request<TreatmentPlanOption>(`/clinical-records/treatment-plan-options/${optionId}/items/${itemId}`, {
+    clinicSlug,
+    token,
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function removeTreatmentPlanOptionItem(clinicSlug: string, token: string, optionId: string, itemId: string) {
+  return request<TreatmentPlanOption>(`/clinical-records/treatment-plan-options/${optionId}/items/${itemId}`, {
+    clinicSlug,
+    token,
+    method: "DELETE",
+  });
 }
 
 /* --- profissionais (staff) ---------------------------------------------------- */
@@ -1122,6 +1218,7 @@ export type InventoryMovement = {
   note: string | null;
   budgetItemId: string | null;
   createdAt: string;
+  editedAt: string | null;
 };
 
 export function getProcedures(clinicSlug: string, token: string) {
@@ -1272,6 +1369,21 @@ export function adjustInventoryItem(
 
 export function getInventoryMovements(clinicSlug: string, token: string, id: string) {
   return request<InventoryMovement[]>(`/inventory-items/${id}/movements`, { clinicSlug, token });
+}
+
+export function updateInventoryMovement(
+  clinicSlug: string,
+  token: string,
+  itemId: string,
+  movementId: string,
+  input: Partial<{ quantity: number; note: string }>,
+) {
+  return request<InventoryMovement>(`/inventory-items/${itemId}/movements/${movementId}`, {
+    clinicSlug,
+    token,
+    method: "PATCH",
+    body: input,
+  });
 }
 
 export type InventoryReportItem = {
